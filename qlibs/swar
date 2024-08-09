@@ -1,0 +1,859 @@
+// <!--
+// The MIT License (MIT)
+//
+// Copyright (c) 2024 Kris Jusiak <kris@jusiak.net>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+#if 0
+// -->
+[![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
+[![Version](https://badge.fury.io/gh/qlibs%2Fswar.svg)](https://github.com/qlibs/swar/releases)
+[![Build](https://img.shields.io/badge/build-blue.svg)](https://godbolt.org/z/xob1nGYoP)
+[![Try it online](https://img.shields.io/badge/try%20it-online-blue.svg)](https://godbolt.org/z/55K55hqWb)
+
+---------------------------------------
+
+## SWAR: [SIMD](https://en.wikipedia.org/wiki/Single_instruction,_multiple_data) within a register library
+
+> https://en.wikipedia.org/wiki/SWAR
+
+### Use cases
+
+- Performance (branchless)
+- Portable (uses 'normal' registers)
+
+### Features
+
+- Single header (https://raw.githubusercontent.com/qlibs/swar/main/swar - for integration see [FAQ](#faq))
+- Minimal [API](#api)
+- Verifies itself upon include (can be disabled with `-DNTEST` - see [FAQ](#faq))
+
+### Requirements
+
+- C++20 ([clang++13+, g++12](https://en.cppreference.com/w/cpp/compiler_support))
+
+---
+
+### Overview
+
+> API (https://godbolt.org/z/b4v9aTEYs)
+
+```cpp
+constexpr u8 data[]{1, 2, 3, 5, 5, 6, 7, 8};
+constexpr swar<u8> lhs{data}; // copy_from
+constexpr swar<u8> rhs{5};    // broadcast (native: u64)
+
+static_assert(8u == lhs.size());
+static_assert(sizeof(u64) == sizeof(lhs));
+
+constexpr auto match = lhs == rhs;
+
+static_assert(any_of(match));
+static_assert(some_of(match));
+static_assert(not all_of(match));
+static_assert(not none_of(match));
+
+static_assert(3u == find_first_set(match));
+static_assert(4u == find_last_set(match));
+static_assert(2u == popcount(match));
+static_assert(match[3u] and match[4u]);
+
+static_assert(sizeof(u32)  == sizeof(swar<u8,  4u>));
+static_assert(sizeof(u64)  == sizeof(swar<u8,  8u>));
+static_assert(sizeof(u32)  == sizeof(swar<u16, 2u>));
+static_assert(sizeof(u64)  == sizeof(swar<u16, 4u>));
+static_assert(sizeof(u64)  == sizeof(swar<u32, 2u>));
+static_assert(sizeof(u128) == sizeof(swar<u32, 4u>));
+
+// and more (see API)...
+```
+
+> Performance (https://godbolt.org/z/ManGb8aso)
+
+```cpp
+auto eq(swar<u8> lhs, swar<u8> rhs) {
+  return lhs == rhs;
+}
+```
+
+```cpp
+eq: // $CXX -O3 -mno-sse -mno-sse2 -mno-sse3 -mno-avx
+  movabs  rdx, -9187201950435737472
+  xor     rdi, rsi
+  movabs  rax, 72340172838076672
+  or      rdi, rdx
+  sub     rax, rdi
+  and     rax, rdx
+  ret
+```
+
+```cpp
+auto contains(swar<u8> lhs, u8 value) {
+  const auto rhs = swar<u8>{value};
+  const auto match = lhs == rhs;
+  return any_of(match);
+}
+```
+
+```cpp
+contains: // $CXX -O3 -mno-sse -mno-sse2 -mno-sse3 -mno-avx
+  movabs  rax, 72340172838076673
+  movzx   esi, sil
+  movabs  rdx, -9187201950435737472
+  imul    rsi, rax
+  sub     rax, 1
+  xor     rdi, rsi
+  or      rdi, rdx
+  sub     rax, rdi
+  test    rax, rdx
+  setne   al
+  ret
+```
+
+```cpp
+auto find(swar<u8> lhs, u8 value) {
+  const auto rhs = swar<u8>{value};
+  const auto match = lhs == rhs;
+  return any_of(match) * find_first_set(match);
+}
+```
+
+```cpp
+find: // $CXX -O3 -mno-sse -mno-sse2 -mno-sse3 -mno-avx
+  movabs  rax, 72340172838076673
+  movzx   esi, sil
+  movabs  rdx, 72340172838076672
+  imul    rsi, rax
+  movabs  rax, -9187201950435737472
+  xor     rdi, rsi
+  or      rdi, rax
+  sub     rdx, rdi
+  and     rdx, rax
+  xor     eax, eax
+  rep bsf rax, rdx
+  test    rdx, rdx
+  mov     edx, 0
+  cmove   rax, rdx
+  ret
+```
+
+---
+
+### Examples
+
+> swar vs simd (https://godbolt.org/z/YsG8evqr8)
+
+```cpp
+template<class T> auto eq(T lhs, T rhs) { return lhs == rhs; }
+```
+
+```cpp
+eq(swar<u8>, swar<u8>): // $CXX -O3 -mno-sse -mno-sse2 -mno-sse3 -mno-avx
+  movabs  rdx, -9187201950435737472
+  xor     rdi, rsi
+  movabs  rax, 72340172838076672
+  or      rdi, rdx
+  sub     rax, rdi
+  and     rax, rdx
+  ret
+
+eq(simd<u8>, simd<u8>): // $CXX -O3 -mavx512f
+  vpcmpeqb xmm0, xmm0, xmm1
+  ret
+```
+
+```cpp
+template<class T> auto contains(T lhs, auto value) {
+  const auto rhs = T{value};
+  const auto match = lhs == rhs;
+  return any_of(match);
+}
+```
+
+```cpp
+cointains(swar<u8>, swar<u8>): // $CXX -O3 -mno-sse -mno-sse2 -mno-sse3 -mno-avx
+  movabs  rax, 72340172838076673
+  movzx   esi, sil
+  movabs  rdx, -9187201950435737472
+  imul    rsi, rax
+  sub     rax, 1
+  xor     rdi, rsi
+  or      rdi, rdx
+  sub     rax, rdi
+  test    rax, rdx
+  setne   al
+  ret
+
+contains(simd<u8>, simd<u8>): // $CXX -O3 -mavx512f
+  vmovd        xmm1, edi
+  vpbroadcastb xmm1, xmm1
+  vpcmpeqb     xmm0, xmm1, xmm0
+  vptest       xmm0, xmm0
+  setne        al
+  ret
+```
+
+
+```cpp
+template<class T> auto find(T lhs, auto value) {
+  const auto rhs = T{value};
+  const auto match = lhs == rhs;
+  return any_of(match) * find_first_set(match);
+}
+```
+
+```cpp
+find(swar<u8>, swar<u8>): // $CXX -O3 -mno-sse -mno-sse2 -mno-sse3 -mno-avx
+  movabs  rax, 72340172838076673
+  movzx   esi, sil
+  movabs  rdx, 72340172838076672
+  imul    rsi, rax
+  movabs  rax, -9187201950435737472
+  xor     rdi, rsi
+  or      rdi, rax
+  sub     rdx, rdi
+  and     rdx, rax
+  xor     eax, eax
+  rep bsf rax, rdx
+  test    rdx, rdx
+  mov     edx, 0
+  cmove   rax, rdx
+  ret
+
+find(simd<u8>, simd<u8>): // $CXX -O3 -mavx512f
+  vmovd         xmm1, edi
+  vpbroadcastb  xmm1, xmm1
+  vpcmpeqb      xmm0, xmm1, xmm0
+  vpmovmskb     eax, xmm0
+  or            eax, 65536
+  rep           bsf ecx, eax
+  xor           eax, eax
+  vptest        xmm0, xmm0
+  cmovne        eax, ecx
+  ret
+```
+
+---
+
+### API
+
+```cpp
+template<class T, size_t Width = sizeof(u64) / sizeof(T), class TAbi = abi_t<T, Width>>
+  requires ((sizeof(T) * Width) <= sizeof(TAbi))
+struct swar {
+  using value_type = T;
+  using abi_type = TAbi;
+
+  constexpr swar() noexcept = default;
+  constexpr swar(const swar&) noexcept = default;
+  constexpr swar(swar&&) noexcept = default;
+  constexpr explicit swar(const auto value) noexcept;
+  constexpr explicit swar(const auto* mem) noexcept;
+  constexpr explicit swar(const auto& gen) noexcept;
+  [[nodiscard]] constexpr explicit operator abi_type() const noexcept;
+  [[nodiscard]] constexpr auto operator[](size_t) const noexcept -> T;
+  [[nodiscard]] static constexpr auto size() noexcept -> size_t;
+  [[nodiscard]] friend constexpr auto operator==(const swar&, const swar&) noexcept;
+};
+
+template<class T, size_t Width = sizeof(u64) / sizeof(T), class TAbi = abi_t<T, Width>>
+  requires ((sizeof(T) * Width) <= sizeof(TAbi))
+struct swar_mask {
+  using value_type = bool; /// predefined
+  using abi_type = TAbi;
+
+  constexpr swar_mask() noexcept = default;
+  constexpr swar_mask(const swar_mask&) noexcept = default;
+  constexpr swar_mask(swar_mask&&) noexcept = default;
+  constexpr explicit swar_mask(const abi_type value) noexcept;
+
+  [[nodiscard]] constexpr auto operator[](const size_t index) const noexcept -> bool;
+  [[nodiscard]] static constexpr auto size() noexcept -> size_t { return Width; }
+};
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto all_of(const swar_mask<T, Width, TAbi>& s) noexcept -> bool;
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto any_of(const swar_mask<T, Width, TAbi>& s) noexcept -> bool;
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto some_of(const swar_mask<T, Width, TAbi>& s) noexcept -> bool;
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto none_of(const swar_mask<T, Width, TAbi>& s) noexcept -> bool;
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto find_first_set(const swar_mask<T, Width, TAbi>& s) noexcept;
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto find_last_set(const swar_mask<T, Width, TAbi>& s) noexcept;
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto popcount(const swar_mask<T, Width, TAbi>& s) noexcept;
+
+template<class T> inline constexpr bool is_swar_v = /* unspecified */;
+template<class T> inline constexpr bool is_swar_mask_v = /* unspecified */;
+```
+
+---
+
+### FAQ
+
+- How to disable running tests at compile-time?
+
+    > When `-DNTEST` is defined static_asserts tests wont be executed upon include.
+    Note: Use with caution as disabling tests means that there are no gurantees upon include that given compiler/env combination works as expected.
+
+- How to integrate with CMake/CPM?
+
+    ```
+    CPMAddPackage(
+      Name swar
+      GITHUB_REPOSITORY qlibs/swar
+      GIT_TAG v1.0.0
+    )
+    add_library(swar INTERFACE)
+    target_include_directories(swar SYSTEM INTERFACE ${swar_SOURCE_DIR})
+    add_library(swar::swar ALIAS swar)
+    ```
+
+    ```
+    target_link_libraries(${PROJECT_NAME} swar::swar);
+    ```
+
+- Acknowledgments
+
+  > https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html, https://wg21.link/P1928
+<!--
+#endif
+
+#pragma once
+#pragma GCC system_header
+
+namespace swar::inline v1_0_0 {
+using u8   = __UINT8_TYPE__;
+using u16  = __UINT16_TYPE__;
+using u32  = __UINT32_TYPE__;
+using u64  = __UINT64_TYPE__;
+using u128 = unsigned __int128;
+using size_t = __SIZE_TYPE__;
+
+template<class T, size_t N>
+[[nodiscard]] consteval auto broadcast(const auto value) noexcept -> T {
+  T result{};
+  for (size_t n{}; n < sizeof(T) * __CHAR_BIT__; n += N) result |= T(value) << n;
+  return result;
+}
+
+namespace detail {
+template<size_t size>
+constexpr auto abi() {
+       if constexpr (size <= sizeof(u8)) return u8{};
+  else if constexpr (size <= sizeof(u16)) return u16{};
+  else if constexpr (size <= sizeof(u32)) return u32{};
+  else if constexpr (size <= sizeof(u64)) return u64{};
+  else return u128{};
+}
+} // detail
+
+template<class T, size_t Width>
+using abi_t = decltype(detail::abi<sizeof(T) * Width>());
+
+template<class T, size_t Width = sizeof(u64) / sizeof(T), class TAbi = abi_t<T, Width>>
+  requires ((sizeof(T) * Width) <= sizeof(TAbi))
+struct swar_mask {
+  using value_type = bool; /// predefined
+  using abi_type = TAbi;
+
+  static constexpr size_t nbits = sizeof(T) * __CHAR_BIT__;
+  static constexpr abi_type lsb = broadcast<abi_type, nbits>(1u);
+  static constexpr abi_type msb = lsb << (nbits - 1u);
+
+  constexpr swar_mask() noexcept = default;
+  constexpr swar_mask(const swar_mask&) noexcept = default;
+  constexpr swar_mask(swar_mask&&) noexcept = default;
+  constexpr explicit swar_mask(const abi_type value) noexcept : value{value} { }
+
+  [[nodiscard]] constexpr auto operator[](const size_t index) const noexcept -> bool {
+    return value & abi_type(1u) << ((1u + index) * nbits - 1u);
+  }
+  [[nodiscard]] static constexpr auto size() noexcept -> size_t { return Width; }
+
+  abi_type value{};
+};
+
+template<class T, size_t Width = sizeof(u64) / sizeof(T), class TAbi = abi_t<T, Width>>
+  requires ((sizeof(T) * Width) <= sizeof(TAbi))
+struct swar {
+  using value_type = T;
+  using abi_type = TAbi;
+
+  static constexpr size_t nbits = sizeof(T) * __CHAR_BIT__;
+  static constexpr abi_type lsb = broadcast<abi_type, nbits>(1u);
+  static constexpr abi_type msb = lsb << (nbits - 1u);
+
+  constexpr swar() noexcept = default;
+  constexpr swar(const swar&) noexcept = default;
+  constexpr swar(swar&&) noexcept = default;
+  constexpr explicit swar(const auto value) noexcept requires requires { abi_type(value); }
+    : value{abi_type(value) * lsb} /// broadcast
+  { }
+  constexpr explicit swar(const auto* mem) noexcept {
+    for (auto i = 0u; i < Width; ++i) value |= abi_type(mem[i]) << (nbits * i);
+  }
+  constexpr explicit swar(const auto& gen) noexcept requires requires(size_t i) { gen(i); } {
+    for (auto i = 0u; i < Width; ++i) value |= abi_type(gen(i)) << (nbits * i);
+  }
+
+  [[nodiscard]] constexpr explicit operator abi_type() const noexcept { return value; };
+  [[nodiscard]] constexpr auto operator[](const size_t index) const noexcept -> T{
+    return (value >> (index * nbits)) & ((T(1u) << nbits) - 1u);
+  }
+  [[nodiscard]] static constexpr auto size() noexcept -> size_t { return Width; }
+
+  [[nodiscard]] friend constexpr auto operator==(const swar& lhs, const swar& rhs) noexcept -> swar_mask<T, Width, TAbi> {
+    return swar_mask<T, Width, TAbi>{~(((abi_type(lhs) ^ abi_type(rhs)) | msb) - lsb) & msb};
+  }
+
+  abi_type value{};
+};
+
+[[nodiscard]] constexpr auto ctz(const auto value) noexcept -> size_t {
+      if constexpr (sizeof(value) <= sizeof(u32)) { return __builtin_ctz(value); }
+ else if constexpr (sizeof(value) <= sizeof(u64)) { return __builtin_ctzl(value); }
+}
+
+[[nodiscard]] constexpr auto clz(const auto value) noexcept -> size_t {
+      if constexpr (sizeof(value) <= sizeof(u32)) { return __builtin_clz(value); }
+ else if constexpr (sizeof(value) <= sizeof(u64)) { return __builtin_clzl(value); }
+}
+
+[[nodiscard]] constexpr auto popcount(const auto value) noexcept -> size_t {
+      if constexpr (sizeof(value) <= sizeof(u32)) { return __builtin_popcount(value); }
+ else if constexpr (sizeof(value) <= sizeof(u64)) { return __builtin_popcountl(value); }
+}
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto all_of(const swar_mask<T, Width, TAbi>& s) noexcept -> bool {
+  return s.value == s.msb;
+}
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto any_of(const swar_mask<T, Width, TAbi>& s) noexcept -> bool {
+  return s.value;
+}
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto some_of(const swar_mask<T, Width, TAbi>& s) noexcept -> bool {
+  return any_of(s) and not all_of(s);
+}
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto none_of(const swar_mask<T, Width, TAbi>& s) noexcept -> bool {
+  return not s.value;
+}
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto find_first_set(const swar_mask<T, Width, TAbi>& s) noexcept -> size_t {
+  return ctz(s.value) / s.nbits;
+}
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto find_last_set(const swar_mask<T, Width, TAbi>& s) noexcept -> size_t {
+  return s.size() - (clz(s.value) / s.nbits) - 1u;
+}
+
+template<class T, size_t Width, class TAbi>
+[[nodiscard]] constexpr auto popcount(const swar_mask<T, Width, TAbi>& s) noexcept -> size_t {
+  return popcount(s.value);
+}
+
+template<class> inline constexpr auto is_swar_v = false;
+template<class T, size_t Width, class TAbi>
+inline constexpr auto is_swar_v<swar<T, Width, TAbi>> = true;
+
+template<class> inline constexpr auto is_swar_mask_v = false;
+template<class T, size_t Width, class TAbi>
+inline constexpr auto is_swar_mask_v<swar_mask<T, Width, TAbi>> = true;
+} // namespace swar
+
+#ifndef NTEST
+static_assert(([] {
+  constexpr auto expect = [](bool cond) { if (not cond) { void failed(); failed(); } };
+
+  using swar::u8;
+  using swar::u16;
+  using swar::u32;
+  using swar::u64;
+
+  // swar::broadcast
+  {
+    static_assert(u8(0x01) == swar::broadcast<u8, 8u>(0x01));
+    static_assert(u16(0x01'01) == swar::broadcast<u16, 8u>(0x01));
+    static_assert(u32(0x42'42'42'42) == swar::broadcast<u32, 8u>(0x42));
+    static_assert(u16(0b0111'0111'0111'0111) == swar::broadcast<u16, 4u>(0b111));
+    static_assert(u64(0x1234'1234'1234'1234) == swar::broadcast<u64, 16u>(0x1234));
+    static_assert(u64(0x12345678'12345678) == swar::broadcast<u64, 32u>(0x12345678));
+  }
+
+  // swar::swar
+  {
+    {
+      constexpr swar::swar<u8> s{};
+      static_assert(8u == s.size());
+    }
+
+    {
+      constexpr swar::swar<u16> s{};
+      static_assert(4u == s.size());
+    }
+
+    {
+      constexpr swar::swar<u32> s{};
+      static_assert(2u == s.size());
+    }
+
+    {
+      constexpr swar::swar<u8, 1u> s{};
+      static_assert(1u == s.size());
+    }
+
+    {
+      swar::swar<u8, 1u> s{};
+      expect(1u == s.size());
+    }
+
+    {
+      swar::swar<u8, 4u> s{42};
+      expect(4u == s.size());
+      expect(42 == s[0u]);
+      expect(42 == s[1u]);
+      expect(42 == s[2u]);
+      expect(42 == s[3u]);
+    }
+
+    {
+      const u8 data[]{1, 2, 3, 4};
+      swar::swar<u8, 4u> s{data};
+      expect(4u == s.size());
+      expect(1 == s[0u]);
+      expect(2 == s[1u]);
+      expect(3 == s[2u]);
+      expect(4 == s[3u]);
+    }
+
+    {
+      swar::swar<u8, 8u> s{[](auto i) { return i*2; }};
+      expect(8u == s.size());
+      expect(0*2 == s[0u]);
+      expect(1*2 == s[1u]);
+      expect(2*2 == s[2u]);
+      expect(3*2 == s[3u]);
+      expect(4*2 == s[4u]);
+      expect(5*2 == s[5u]);
+      expect(6*2 == s[6u]);
+      expect(7*2 == s[7u]);
+    }
+
+    {
+      swar::swar<u32, 2u> lhs{1};
+      swar::swar<u32, 2u> rhs = lhs;
+      expect(u64(lhs) == u64(rhs));
+    }
+
+    {
+      swar::swar<u32, 2u> lhs{1};
+      swar::swar<u32, 2u> rhs = static_cast<swar::swar<u32, 2u>&&>(lhs);
+      expect(u64(lhs) == u64(rhs));
+    }
+
+    {
+      {
+        swar::swar<u8, 4u> s{};
+        expect(not decltype(s)::abi_type(s));
+      }
+
+      {
+        swar::swar<u8, 4u> s{1};
+        expect(decltype(s)::abi_type(s));
+      }
+    }
+  }
+
+  // swar::swar_mask
+  {
+    {
+      constexpr swar::swar_mask<u8, 8u> s{};
+      static_assert(8u == s.size());
+    }
+
+    {
+      const u16 data1[]{1, 2, 3, 4};
+      const swar::swar<u16, 4u> lhs{data1};
+      const u16 data2[]{1, 3, 3, 1};
+      const swar::swar<u16, 4u> rhs{data2};
+
+      const swar::swar_mask<u16, 4u> sm = lhs == rhs;
+
+      expect(sm[0u]);
+      expect(not sm[1u]);
+      expect(sm[2u]);
+      expect(not sm[3u]);
+    }
+
+    {
+      const u8 data1[]{1, 2, 3, 4, 5, 6, 7, 8};
+      const swar::swar<u8, 8u> lhs{data1};
+      const u8 data2[]{1, 2, 3, 4, 0, 6, 7, 8};
+      const swar::swar<u8, 8u> rhs{data2};
+
+      const swar::swar_mask<u8, 8u> sm = lhs == rhs;
+
+      expect(sm[0u]);
+      expect(sm[1u]);
+      expect(sm[2u]);
+      expect(sm[3u]);
+      expect(not sm[4u]);
+      expect(sm[5u]);
+      expect(sm[6u]);
+      expect(sm[7u]);
+    }
+  }
+
+  // swar::all_of
+  {
+    {
+      const swar::swar<u8, 4u> lhs{4};
+      const swar::swar<u8, 4u> rhs{4};
+      expect(swar::all_of(lhs == rhs));
+    }
+
+    {
+      const swar::swar<u16, 4u> lhs{123};
+      const swar::swar<u16, 4u> rhs{123};
+      expect(swar::all_of(lhs == rhs));
+    }
+
+    {
+      const swar::swar<u8, 4u> lhs{4};
+      const swar::swar<u8, 4u> rhs{7};
+      expect(not swar::all_of(lhs == rhs));
+    }
+
+    {
+      const u8 data[]{1, 2, 3, 4};
+      const swar::swar<u8, 4u> lhs{data};
+      expect(not swar::all_of(lhs == swar::swar<u8, 4u>{}));
+      expect(not swar::all_of(lhs == swar::swar<u8, 4u>{1}));
+      expect(not swar::all_of(lhs == swar::swar<u8, 4u>{2}));
+      expect(not swar::all_of(lhs == swar::swar<u8, 4u>{3}));
+      expect(not swar::all_of(lhs == swar::swar<u8, 4u>{4}));
+    }
+  }
+
+  // swar::any_of
+  {
+    {
+      const swar::swar<u8, 4u> lhs{4};
+      const swar::swar<u8, 4u> rhs{4};
+      expect(swar::any_of(lhs == rhs));
+    }
+
+    {
+      const swar::swar<u16, 4u> lhs{123};
+      const swar::swar<u16, 4u> rhs{123};
+      expect(swar::any_of(lhs == rhs));
+    }
+
+    {
+      const swar::swar<u8, 4u> lhs{4};
+      const swar::swar<u8, 4u> rhs{7};
+      expect(not swar::any_of(lhs == rhs));
+    }
+
+    {
+      const u8 data[]{1, 2, 3, 4};
+      const swar::swar<u8, 4u> lhs{data};
+      expect(not swar::any_of(lhs == swar::swar<u8, 4u>{}));
+      expect(not swar::any_of(lhs == swar::swar<u8, 4u>{42}));
+      expect(swar::any_of(lhs == swar::swar<u8, 4u>{1}));
+      expect(swar::any_of(lhs == swar::swar<u8, 4u>{2}));
+      expect(swar::any_of(lhs == swar::swar<u8, 4u>{3}));
+      expect(swar::any_of(lhs == swar::swar<u8, 4u>{4}));
+    }
+  }
+
+  // swar::some_of
+  {
+    {
+      const swar::swar<u8, 4u> lhs{4};
+      const swar::swar<u8, 4u> rhs{4};
+      expect(not swar::some_of(lhs == rhs));
+    }
+
+    {
+      const swar::swar<u16, 4u> lhs{123};
+      const swar::swar<u16, 4u> rhs{123};
+      expect(not swar::some_of(lhs == rhs));
+    }
+
+    {
+      const swar::swar<u8, 4u> lhs{4};
+      const swar::swar<u8, 4u> rhs{7};
+      expect(not swar::some_of(lhs == rhs));
+    }
+
+    {
+      const u8 data[]{1, 2, 3, 4};
+      const swar::swar<u8, 4u> lhs{data};
+      expect(not swar::some_of(lhs == swar::swar<u8, 4u>{}));
+      expect(not swar::some_of(lhs == swar::swar<u8, 4u>{42}));
+      expect(swar::some_of(lhs == swar::swar<u8, 4u>{1}));
+      expect(swar::some_of(lhs == swar::swar<u8, 4u>{2}));
+      expect(swar::some_of(lhs == swar::swar<u8, 4u>{3}));
+      expect(swar::some_of(lhs == swar::swar<u8, 4u>{4}));
+    }
+  }
+
+  // swar::none_of
+  {
+    {
+      const swar::swar<u8, 4u> lhs{4};
+      const swar::swar<u8, 4u> rhs{4};
+      expect(not swar::none_of(lhs == rhs));
+    }
+
+    {
+      const swar::swar<u16, 4u> lhs{123};
+      const swar::swar<u16, 4u> rhs{123};
+      expect(not swar::none_of(lhs == rhs));
+    }
+
+    {
+      const swar::swar<u8, 4u> lhs{4};
+      const swar::swar<u8, 4u> rhs{7};
+      expect(swar::none_of(lhs == rhs));
+    }
+
+    {
+      const u8 data[]{1, 2, 3, 4};
+      const swar::swar<u8, 4u> lhs{data};
+      expect(swar::none_of(lhs == swar::swar<u8, 4u>{}));
+      expect(swar::none_of(lhs == swar::swar<u8, 4u>{42}));
+      expect(not swar::none_of(lhs == swar::swar<u8, 4u>{1}));
+      expect(not swar::none_of(lhs == swar::swar<u8, 4u>{2}));
+      expect(not swar::none_of(lhs == swar::swar<u8, 4u>{3}));
+      expect(not swar::none_of(lhs == swar::swar<u8, 4u>{4}));
+    }
+  }
+
+  // swar::find_first_set
+  {
+    {
+      const u8 data[]{1, 2, 3, 4};
+      const swar::swar<u8, 4u> lhs{data};
+      expect(0u == swar::find_first_set(lhs == swar::swar<u8, 4u>{1}));
+      expect(1u == swar::find_first_set(lhs == swar::swar<u8, 4u>{2}));
+      expect(2u == swar::find_first_set(lhs == swar::swar<u8, 4u>{3}));
+      expect(3u == swar::find_first_set(lhs == swar::swar<u8, 4u>{4}));
+    }
+
+    {
+      const u32 data[]{1234, 5678};
+      const swar::swar<u32, 2u> lhs{data};
+      expect(0u == swar::find_first_set(lhs == swar::swar<u32, 2u>{1234}));
+      expect(1u == swar::find_first_set(lhs == swar::swar<u32, 2u>{5678}));
+    }
+
+    {
+      const u8 data[]{5, 6, 7, 8, 5, 6, 1, 1};
+      const swar::swar<u8, 8u> lhs{data};
+      expect(0u == swar::find_first_set(lhs == swar::swar<u8, 8u>{5}));
+      expect(1u == swar::find_first_set(lhs == swar::swar<u8, 8u>{6}));
+      expect(2u == swar::find_first_set(lhs == swar::swar<u8, 8u>{7}));
+      expect(3u == swar::find_first_set(lhs == swar::swar<u8, 8u>{8}));
+      expect(0u == swar::find_first_set(lhs == swar::swar<u8, 8u>{5}));
+      expect(1u == swar::find_first_set(lhs == swar::swar<u8, 8u>{6}));
+      expect(6u == swar::find_first_set(lhs == swar::swar<u8, 8u>{1}));
+      expect(6u == swar::find_first_set(lhs == swar::swar<u8, 8u>{1}));
+    }
+  }
+
+  // swar::find_last_set
+  {
+    {
+      const u8 data[]{1, 2, 3, 4};
+      const swar::swar<u8, 4u> lhs{data};
+      expect(0u == swar::find_last_set(lhs == swar::swar<u8, 4u>{1}));
+      expect(1u == swar::find_last_set(lhs == swar::swar<u8, 4u>{2}));
+      expect(2u == swar::find_last_set(lhs == swar::swar<u8, 4u>{3}));
+      expect(3u == swar::find_last_set(lhs == swar::swar<u8, 4u>{4}));
+    }
+
+    {
+      const u32 data[]{1234, 5678};
+      const swar::swar<u32, 2u> lhs{data};
+      expect(0u == swar::find_last_set(lhs == swar::swar<u32, 2u>{1234}));
+      expect(1u == swar::find_last_set(lhs == swar::swar<u32, 2u>{5678}));
+    }
+
+    {
+      const u8 data[]{5, 6, 7, 8, 5, 6, 1, 1};
+      const swar::swar<u8, 8u> lhs{data};
+      expect(4u == swar::find_last_set(lhs == swar::swar<u8, 8u>{5}));
+      expect(5u == swar::find_last_set(lhs == swar::swar<u8, 8u>{6}));
+      expect(2u == swar::find_last_set(lhs == swar::swar<u8, 8u>{7}));
+      expect(3u == swar::find_last_set(lhs == swar::swar<u8, 8u>{8}));
+      expect(4u == swar::find_last_set(lhs == swar::swar<u8, 8u>{5}));
+      expect(5u == swar::find_last_set(lhs == swar::swar<u8, 8u>{6}));
+      expect(7u == swar::find_last_set(lhs == swar::swar<u8, 8u>{1}));
+      expect(7u == swar::find_last_set(lhs == swar::swar<u8, 8u>{1}));
+    }
+  }
+
+  // swar::popcount
+  {
+    expect(0u == popcount(swar::swar_mask<u8, 4>{}));
+    expect(1u*4u == popcount(swar::swar_mask<u8, 4>{0x01'01'01'01}));
+    expect(3u*4u == popcount(swar::swar_mask<u8, 4>{0b00000111'00000111'00000111'00000111}));
+  }
+
+  // swar::is_swar_v
+  {
+    static_assert(not swar::is_swar_v<void>);
+    static_assert(not swar::is_swar_v<int>);
+    static_assert(not swar::is_swar_v<swar::swar_mask<u8, 2u>>);
+    static_assert(not swar::is_swar_v<swar::swar_mask<u32, 2u>>);
+    static_assert(swar::is_swar_v<swar::swar<u8, 2u>>);
+    static_assert(swar::is_swar_v<swar::swar<u32, 2u>>);
+  }
+
+  // swar::is_swar_mask_v
+  {
+    static_assert(not swar::is_swar_mask_v<void>);
+    static_assert(not swar::is_swar_mask_v<int>);
+    static_assert(not swar::is_swar_mask_v<swar::swar<u8, 2u>>);
+    static_assert(not swar::is_swar_mask_v<swar::swar<u32, 2u>>);
+    static_assert(swar::is_swar_mask_v<swar::swar_mask<u8, 2u>>);
+    static_assert(swar::is_swar_mask_v<swar::swar_mask<u32, 2u>>);
+  }
+}(), true));
+#endif // NTEST
