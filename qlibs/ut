@@ -23,18 +23,18 @@
 //
 #if 0
 // -->
+[Overview](#Overview) / [Examples](#Examples) / [API](#API) / [FAQ](#FAQ)
+
+## UT: C++20 Unit-Testing library
+
+  > "If you liked it then you `"should have put a"_test` on it", Beyonce rule
+
 [![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
 [![Version](https://badge.fury.io/gh/qlibs%2Fut.svg)](https://github.com/qlibs/ut/releases)
 [![build](https://img.shields.io/badge/build-blue.svg)](https://godbolt.org/z/f3WPzK5xf)
 [![Try it online](https://img.shields.io/badge/try%20it-online-blue.svg)](https://godbolt.org/z/MG5cjnsbM)
 
----------------------------------------
-
-> "If you liked it then you `"should have put a"_test` on it", Beyonce rule
-
-## UT: C++20 minimal unit-testing library
-
-> https://en.wikipedia.org/wiki/Unit_testing
+  > https://en.wikipedia.org/wiki/Unit_testing
 
 ### Features
 
@@ -58,7 +58,7 @@
 
 ---
 
-### Examples
+### Overview
 
 > Hello world (https://godbolt.org/z/MG5cjnsbM)
 
@@ -227,6 +227,8 @@ int main() {
 ```
 
 ---
+
+### Examples
 
 > Reflection integration (https://godbolt.org/z/v8GG4hfbW)
 

@@ -23,16 +23,16 @@
 //
 #if 0
 // -->
+[Overview](#Overview) / [Examples](#Examples) / [API](#API) / [FAQ](#FAQ)
+
+## JMP: Static branch library
+
 [![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
 [![Version](https://badge.fury.io/gh/qlibs%2Fjmp.svg)](https://github.com/qlibs/jmp/releases)
 [![build](https://img.shields.io/badge/build-blue.svg)](https://godbolt.org/z/oo3n73Mxv)
 [![Try it online](https://img.shields.io/badge/try%20it-online-blue.svg)](https://godbolt.org/z/v8W3Pzbxd)
 
----------------------------------------
-
-## JMP: Static branch library
-
-> https://en.wikipedia.org/wiki/Branch_(computer_science)
+  > https://en.wikipedia.org/wiki/Branch_(computer_science)
 
 ### Use cases
 
@@ -41,7 +41,7 @@
 > - branch is expensive to compute / require [memory access](https://en.wikipedia.org/wiki/CPU_cache) `and/or`
 > - branch is hard to learn by the [branch predictor](https://en.wikipedia.org/wiki/Branch_predictor)
 
-> Examples: logging, tracing, dispatching, fast path, devirtualization, ...
+  > Examples: logging, tracing, dispatching, fast path, devirtualization, ...
 
 ### Features
 
