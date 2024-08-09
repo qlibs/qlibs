@@ -1,7 +1,5 @@
 <a href="https://qlibs.github.io"><img style="width:50%" src="https://qlibs.github.io/img/qlibs_logo.png" /></a>
 
----
-
 ## FAQ
 
 - How to integrate with CMake/CPM?
