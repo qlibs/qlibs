@@ -1,4 +1,4 @@
-[![Qlibs++](https://qlibs.github.io/img/qlibs_logo.png])](https://qlibs.github.io)
+[![Qlibs++](https://qlibs.github.io/img/qlibs_logo.png)](https://qlibs.github.io)
 
 ```
 CPMAddPackage(
