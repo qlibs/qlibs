@@ -2,7 +2,7 @@
 
 ---
 
-<details open><summary>## JMP: Static branch library</summary>
+<details open><summary><h3>JMP: Static branch library - https://github.com/qlibs/jmp</h3></summary><p>
 
 [![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
 [![Version](https://badge.fury.io/gh/qlibs%2Fjmp.svg)](https://github.com/qlibs/jmp/releases)
@@ -677,6 +677,7 @@ struct static_branch<T, Min, Max> final {
   > - https://arxiv.org/abs/2308.14185
   > - https://arxiv.org/abs/2011.13127
 
+</p>
 </details>
 
 [![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
