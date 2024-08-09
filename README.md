@@ -1,18 +1,8 @@
 ## QLlibs++ - Modern C++ libraries
----
-
-### Libraries
-
-- [jmp](#jmp)
-- [mem](#mem)
-- [mp](#mp)
-- [mph](#mph)
-- [reflect](#reflect)
-- [sml](#sml)
-- [swar](#swar)
-- [ut](#ut)
 
 ---
+
+<details open><summary>## JMP: Static branch library</summary>
 
 [![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
 [![Version](https://badge.fury.io/gh/qlibs%2Fjmp.svg)](https://github.com/qlibs/jmp/releases)
@@ -686,7 +676,9 @@ struct static_branch<T, Min, Max> final {
   > - https://uops.info/table.html
   > - https://arxiv.org/abs/2308.14185
   > - https://arxiv.org/abs/2011.13127
----
+
+</details>
+
 [![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
 [![Version](https://badge.fury.io/gh/qlibs%2Fmem.svg)](https://github.com/qlibs/mem/releases)
 [![build](https://img.shields.io/badge/build-blue.svg)](https://godbolt.org/z/ensvKohTs)

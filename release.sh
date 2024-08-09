@@ -26,5 +26,4 @@ echo >> README.md
 
 for lib in $LIBS; do
   sed -n '/^#if 0/,/^#endif/p' qlibs/$lib | head -n -2 | tail -n +3 >> README.md
-  echo "---" >> README.md
 done
