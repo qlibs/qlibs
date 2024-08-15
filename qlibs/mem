@@ -23,16 +23,16 @@
 //
 #if 0
 // -->
-[Overview](#Overview) / [Examples](#Examples) / [API](#API) / [FAQ](#FAQ)
-
-## MEM: Memory Allocators
-
 [![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
 [![Version](https://badge.fury.io/gh/qlibs%2Fmem.svg)](https://github.com/qlibs/mem/releases)
 [![build](https://img.shields.io/badge/build-blue.svg)](https://godbolt.org/z/ensvKohTs)
 [![Try it online](https://img.shields.io/badge/try%20it-online-blue.svg)](https://godbolt.org/z/cqch69rGh)
 
-  > [https://en.wikipedia.org/wiki/Allocator_C++](https://en.wikipedia.org/wiki/Allocator_(C%2B%2B))
+---------------------------------------
+
+## mem: Memory Allocators
+
+> [https://en.wikipedia.org/wiki/Allocator_C++](https://en.wikipedia.org/wiki/Allocator_(C%2B%2B))
 
 ### Features
 
@@ -130,14 +130,20 @@ struct numa_allocator {
 
   constexpr numa_allocator(node_type node = {}) noexcept;
 
+  /**
+   * The size argument (n) will be rounded up to a multiple of the system page size.
+   */
   [[nodiscard]] constexpr auto allocate(std::size_t n) noexcept(noexcept(on_error())) -> T*;
+
+  /**
+   * The size argument (n) will be rounded up to a multiple of the system page size.
+   */
+  constexpr void deallocate(T* ptr, std::size_t n) noexcept;
 
   #if __cpp_lib_allocate_at_least >= 202302L
   constexpr std::allocation_result<T*, std::size_t>
   allocate_at_least(std::size_t n) noexcept(noexcept(allocate(n));
   #endif
-
-  constexpr void deallocate(T* ptr, std::size_t n) noexcept;
 };
 ```
 
@@ -164,7 +170,6 @@ struct numa_allocator {
 
 - Acknowledgments
 
-  > - https://eel.is/c++draft/allocator.requirements
   > - https://en.cppreference.com/w/cpp/memory/allocator
 
   > - https://www.kernel.org/doc/html/latest/admin-guide/mm/hugetlbpage.html
@@ -326,18 +331,18 @@ struct numa_allocator {
     return std::bit_cast<T*>(ptr);
   }
 
-  #if __cpp_lib_allocate_at_least >= 202302L
-  constexpr std::allocation_result<T*, std::size_t> allocate_at_least(std::size_t n) noexcept(noexcept(allocate(n)) {
-    return { allocate(n), n };
-  }
-  #endif
-
   /**
    * The size argument (n) will be rounded up to a multiple of the system page size.
    */
   constexpr void deallocate(T* ptr, std::size_t n) noexcept {
     numa_free(ptr, n * sizeof(T));
   }
+
+  #if __cpp_lib_allocate_at_least >= 202302L
+  constexpr std::allocation_result<T*, std::size_t> allocate_at_least(std::size_t n) noexcept(noexcept(allocate(n)) {
+    return { allocate(n), n };
+  }
+  #endif
 
   node_type node{};
 };

@@ -1,42 +1,28 @@
 // <!--
-// The MIT License (MIT)
 //
-// Copyright (c) 2024 Kris Jusiak <kris@jusiak.net>
+// Copyright (c) 2024 Kris Jusiak (kris at jusiak dot net)
 //
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-//
-#if 0
+#ifdef README
 // -->
-[Overview](#Overview) / [Examples](#Examples) / [API](#API) / [FAQ](#FAQ)
-
-## REFLECT: C++20 Static Reflection library
-
-[![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
-[![Version](https://badge.fury.io/gh/qlibs%2Freflect.svg)](https://github.com/qlibs/reflect/releases)
+[![Boost Licence](http://img.shields.io/badge/license-boost-blue.svg)](http://www.boost.org/LICENSE_1_0.txt)
+[![Version](https://badge.fury.io/gh/boost-ext%2Freflect.svg)](https://github.com/boost-ext/reflect/releases)
 [![build](https://img.shields.io/badge/build-blue.svg)](https://godbolt.org/z/zvooxGPP9)
 [![Try it online](https://img.shields.io/badge/try%20it-online-blue.svg)](https://godbolt.org/z/oYhh1hfeo)
 
-  > https://en.wikipedia.org/wiki/Reflective_programming
+---------------------------------------
+
+## C++20 minimal static reflection library
+
+> https://en.wikipedia.org/wiki/Reflective_programming
 
 ### Features
 
-- Single header (https://raw.githubusercontent.com/qlibs/reflect/main/reflect - for integration see [FAQ](#faq))
+- Single header (https://raw.githubusercontent.com/boost-ext/reflect/main/reflect)
+    - Easy integration (see [FAQ](#faq))
 - Minimal [API](#api)
 - Verifies itself upon include (can be disabled with `-DNTEST` - see [FAQ](#faq))
     - Basically guarantees no UB, no memory leaks*
@@ -52,9 +38,7 @@
 
 ---
 
-### Overview
-
-> Hello world (https://godbolt.org/z/oYhh1hfeo)
+### Hello world (https://godbolt.org/z/oYhh1hfeo)
 
 ```cpp
 #include <reflect>
@@ -115,9 +99,9 @@ int main() {
 ### Examples
 
 - [feature] Opt-in mixins - https://godbolt.org/z/sj7fYKoc3
-- [feature] Meta-programming (https://github.com/qlibs/mp) - https://godbolt.org/z/ds3KMGhqP
+- [feature] Meta-programming (https://github.com/boost-ext/mp) - https://godbolt.org/z/ds3KMGhqP
 - [future] Structured Bindings can introduce a Pack (https://wg21.link/P1061) - https://godbolt.org/z/Ga3bc3KKW
-- [performance] Minimal Perfect Hashing based `enum_name` (https://github.com/qlibs/mph) - https://godbolt.org/z/WM155vTfv
+- [performance] Minimal-Perfect-Hashing based `enum_name` (https://github.com/boost-ext/mph) - https://godbolt.org/z/WM155vTfv
 
 ---
 
@@ -184,7 +168,7 @@ enum_name<1ul>:
 <a name="comp"></a>
 ### Compilation times
 
-> [include] https://raw.githubusercontent.com/qlibs/reflect/main/reflect
+> [include] https://raw.githubusercontent.com/boost-ext/reflect/main/reflect
 
 ```cpp
 time g++-13.2 -x c++ -std=c++20 reflect -c -DNTEST   # 0.113s
@@ -440,12 +424,14 @@ reflect::for_each([&f](const auto I) {
 > Configuration
 
 ```cpp
+#define REFLECT 1'2'2           // Current library version (SemVer)
 #define REFLECT_ENUM_MIN 0      // Min size for enum name (can be overridden)
                                 // For example: `-DREFLECT_ENUM_MIN=-1`
 #define REFLECT_ENUM_MAX 128    // Max size for enum name (can be overridden)
                                 // For example: `-DREFLECT_ENUM_MAX=32`
+#define NTEST                   // Disables running static_asserts tests
+                                // Not enabled by default (use with caution)
 ```
-
 ---
 
 ### FAQ
@@ -496,7 +482,7 @@ reflect::for_each([&f](const auto I) {
     ```
     CPMAddPackage(
       Name reflect
-      GITHUB_REPOSITORY qlibs/reflect
+      GITHUB_REPOSITORY boost-ext/reflect
       GIT_TAG v1.2.2
     )
     add_library(reflect INTERFACE)
@@ -511,9 +497,9 @@ reflect::for_each([&f](const auto I) {
 - Similar projects?
     > [boost.pfr](https://github.com/boostorg/pfr), [glaze](https://github.com/stephenberry/glaze), [reflect-cpp](https://github.com/getml/reflect-cpp), [magic_enum](https://github.com/Neargye/magic_enum)
 <!--
-#endif
-
-#pragma once
+#else
+#ifndef REFLECT
+#define REFLECT 1'2'2 // SemVer
 
 #include <array>
 #include <string_view>
@@ -606,17 +592,17 @@ struct fixed_string {
   [[nodiscard]] constexpr auto operator<=>(const fixed_string&) const = default;
   [[nodiscard]] constexpr explicit(false) operator std::string_view() const { return {std::data(data), Size}; }
   [[nodiscard]] constexpr auto size() const { return Size; }
-  T data[Size + 1u];
+  T data[Size+1];
 };
 template<class T, std::size_t Capacity, std::size_t Size = Capacity-1> fixed_string(const T (&str)[Capacity]) -> fixed_string<T, Size>;
 
 namespace detail {
-template<class T, std::size_t Bases = 0u, class... Ts> requires std::is_aggregate_v<T>
+template<class T, std::size_t Bases = 0, class... Ts> requires std::is_aggregate_v<T>
 [[nodiscard]] constexpr auto size() -> std::size_t {
   if constexpr (requires { T{Ts{}...}; } and not requires { T{Ts{}..., detail::any{}}; }) {
     return sizeof...(Ts) - Bases;
   } else if constexpr (Bases == sizeof...(Ts) and requires { T{Ts{}...}; } and not requires { T{Ts{}..., detail::any_except_base_of<T>{}}; }) {
-    return size<T, Bases + 1u, Ts..., detail::any>();
+    return size<T, Bases + 1, Ts..., detail::any>();
   } else {
     return size<T, Bases, Ts..., detail::any>();
   }
@@ -806,12 +792,12 @@ template<class E, fixed_string unknown = "", auto Min = enum_min(E{}), auto Max 
   if constexpr (constexpr auto cases = enumerators<E, Min, Max>; std::empty(cases)) {
     return unknown;
   } else {
-    const auto switch_case = [&]<std::size_t I = 0u>(auto switch_case, const auto value) -> std::string_view {
+    const auto switch_case = [&]<auto I = 0>(auto switch_case, const auto value) -> std::string_view {
       if constexpr (I == std::size(cases)) {
         return unknown;
       } else {
         switch (value) {
-          default:             return switch_case.template operator()<I + 1u>(switch_case, value);
+          default:             return switch_case.template operator()<I+1>(switch_case, value);
           case cases[I].first: return cases[I].second;
         }
       }
@@ -1064,12 +1050,10 @@ enum e3 { e3a, e3b, e3c, };
 enum class e4 : std::int32_t { e4a, e4b = 77, e4c, e4d = 42, };
 consteval auto enum_min(e) { return e::_141; }
 consteval auto enum_max(e) { return e::_142; }
-void failed(); auto expect = [](bool cond) { if (not cond) { failed(); } };
 } // reflect::test
 
-static_assert(([] {
+static_assert(([]<auto expect = [](const bool cond) { return std::array{true}[not cond]; }> {
   using namespace reflect;
-  using test::expect;
 
   // nth_pack_element
   {
@@ -1785,3 +1769,5 @@ static_assert(([] {
   }
 }(), true));
 #endif // NTEST
+#endif // REFLECT
+#endif // README

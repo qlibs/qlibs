@@ -1,40 +1,25 @@
 // <!--
-// The MIT License (MIT)
 //
-// Copyright (c) 2024 Kris Jusiak <kris@jusiak.net>
+// Copyright (c) 2024 Kris Jusiak (kris at jusiak dot net)
 //
-// Permission is hereby granted, free of charge, to any person obtaining a copy
-// of this software and associated documentation files (the "Software"), to deal
-// in the Software without restriction, including without limitation the rights
-// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
-// copies of the Software, and to permit persons to whom the Software is
-// furnished to do so, subject to the following conditions:
+// Distributed under the Boost Software License, Version 1.0.
+// (See accompanying file LICENSE_1_0.txt or copy at
+// http://www.boost.org/LICENSE_1_0.txt)
 //
-// The above copyright notice and this permission notice shall be included in all
-// copies or substantial portions of the Software.
-//
-// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
-// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
-// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
-// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
-// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
-// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
-// SOFTWARE.
-//
-#if 0
+#ifdef README
 // -->
-[Overview](#Overview) / [Examples](#Examples) / [API](#API) / [FAQ](#FAQ)
-
-## UT: C++20 Unit-Testing library
-
-  > "If you liked it then you `"should have put a"_test` on it", Beyonce rule
-
-[![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
+[![Boost Licence](http://img.shields.io/badge/license-boost-blue.svg)](http://www.boost.org/LICENSE_1_0.txt)
 [![Version](https://badge.fury.io/gh/qlibs%2Fut.svg)](https://github.com/qlibs/ut/releases)
 [![build](https://img.shields.io/badge/build-blue.svg)](https://godbolt.org/z/f3WPzK5xf)
 [![Try it online](https://img.shields.io/badge/try%20it-online-blue.svg)](https://godbolt.org/z/MG5cjnsbM)
 
-  > https://en.wikipedia.org/wiki/Unit_testing
+---------------------------------------
+
+> "If you liked it then you `"should have put a"_test` on it", Beyonce rule
+
+## UT: C++20 minimal unit-testing library
+
+> https://en.wikipedia.org/wiki/Unit_testing
 
 ### Features
 
@@ -58,7 +43,7 @@
 
 ---
 
-### Overview
+### Examples
 
 > Hello world (https://godbolt.org/z/MG5cjnsbM)
 
@@ -228,8 +213,6 @@ int main() {
 
 ---
 
-### Examples
-
 > Reflection integration (https://godbolt.org/z/v8GG4hfbW)
 
 ```cpp
@@ -314,14 +297,14 @@ time $CXX -x c++ -std=c++20 ut -c                  # 0.049s
 <a name="perf"></a>
 ### Performance
 
-> Benchmark - 100 tests, 1000 asserts (https://godbolt.org/z/xKx45s4xq)
+> Benchmark - 100 tests, 1000 asserts (https://godbolt.org/z/6WzxvjEex)
 
 ```cpp
 time ./benchmark # 0m0.002s (-O3)
 time ./benchmark # 0m0.013s (-g)
 ```
 
-> X86-64 assembly -O3 (https://godbolt.org/z/rqbsafaE6)
+> X86-64 assembly -O3 (https://godbolt.org/z/x6GYbs4hT)
 
 ```cpp
 int main() {
@@ -604,10 +587,14 @@ template <class...> inline auto cfg = default_cfg{};
 ```
 
 ```cpp
+#define UT 2'1'2                // Current library version (SemVer)
 #define UT_RUN_TIME_ONLY        // If defined tests will be executed
                                 // at run-time + static_assert tests
 #define UT_COMPILE_TIME_ONLY    // If defined only compile-time tests
                                 // will be executed
+#define NTEST                   // If defined it disables running
+                                // static_asserts tests for the UT library
+                                // (user tests are not affected)
 ```
 
 ---
@@ -639,9 +626,9 @@ template <class...> inline auto cfg = default_cfg{};
 - Similar projects?
     > [ut](https://github.com/boost-ext/ut), [catch2](https://github.com/catchorg/Catch2), [googletest](https://github.com/google/googletest), [gunit](https://github.com/cpp-testing/GUnit), [boost.test](https://www.boost.org/doc/libs/latest/libs/test/doc/html/index.html)
 <!--
-#endif
-
-#pragma once
+#else
+#ifndef UT
+#define UT 2'1'2 // SemVer
 
 namespace ut::inline v2_1_2 {
 namespace type_traits {
@@ -1374,3 +1361,5 @@ static_assert(([] {
   }
 }(), true));
 #endif // NTEST
+#endif // UT
+#endif // README
