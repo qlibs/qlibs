@@ -12,8 +12,9 @@ jobs:
     runs-on: ubuntu-latest
     permissions:
       contents: write
+      statuses: write
     env:
-      GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+      GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
     steps:
     - name: checkout
@@ -35,7 +36,7 @@ jobs:
 
     - name: tag
       run: |
-        TAG_NAME=$(date +'%Y_%m_%d')
+        TAG_NAME=$(date +'%Y_%m_%d').${{ github.run_number }}
         git tag $TAG_NAME
         git push origin $TAG_NAME
 
