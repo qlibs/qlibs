@@ -38,7 +38,11 @@ jobs:
       if: env.found_changes == 'true'
       id: notes
       run: |
-        echo "NOTES=\"$(<notes.txt)\"" >> $GITHUB_ENV
+        {
+          echo 'NOTES<<EOF'
+          cat notes.txt
+          echo EOF
+        } >> "$GITHUB_ENV"
 
     - name: git
       if: env.found_changes == 'true'
