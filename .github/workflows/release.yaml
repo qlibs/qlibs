@@ -22,21 +22,9 @@ jobs:
 
     - name: release
       run: |
-        .github/scripts/release.sh > notes.txt || echo "Nothing to release" && exit 0
-
-    - name: changes
-      id: check-changes
-      run: |
-        if git diff --quiet; then
-          echo "No changes to commit."
-          echo "found_changes=false" >> $GITHUB_ENV
-        else
-          echo "found_changes=true" >> $GITHUB_ENV
-        fi
+        .github/scripts/release.sh > notes.txt
 
     - name: notes
-      if: env.found_changes == 'true'
-      id: notes
       run: |
         {
           echo 'NOTES<<EOF'
@@ -45,20 +33,18 @@ jobs:
         } >> "$GITHUB_ENV"
 
     - name: git
-      if: env.found_changes == 'true'
       run: |
         git config user.name "qlibs@github.com"
         git config user.email "noreply@github.com"
 
     - name: commit
-      if: env.found_changes == 'true'
       run: |
-        git add qlibs
-        git commit -m "release: $(date +'%Y_%m_%d')"
+        if ! git diff --quiet; then
+          git add qlibs
+          git commit -m "release: $(date +'%Y_%m_%d')"
+        fi
 
     - name: tag
-      if: env.found_changes == 'true'
-      id: tag_name
       run: |
         TAG_NAME=qlibs.$(date +'%Y_%m_%d')
         echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
@@ -66,11 +52,9 @@ jobs:
         git push origin $TAG_NAME
 
     - name: push
-      if: env.found_changes == 'true'
       run: git push origin main
 
     - name: github
-      if: env.found_changes == 'true'
       uses: actions/create-release@v1
       with:
         tag_name: ${{ env.TAG_NAME }}
