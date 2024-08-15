@@ -93,7 +93,8 @@ jobs:
               GIT_TAG ${{ env.TAG_NAME }}
             )
             add_library(qlibs INTERFACE)
-            target_include_directories(qlibs SYSTEM INTERFACE ${qlibs_SOURCE_DIR}) add_library(qlibs::qlibs ALIAS qlibs)
+            target_include_directories(qlibs SYSTEM INTERFACE ${qlibs_SOURCE_DIR})
+            add_library(qlibs::qlibs ALIAS qlibs)
             ```
 
             ```
