@@ -75,7 +75,7 @@ jobs:
           <a href="https://qlibs.github.io"><img style="width:50%" src="https://qlibs.github.io/img/qlibs_logo.png" /></a>
 
           ## Libraries
-#
+
           ${{ env.NOTES }}
 
           ## FAQ
