@@ -34,6 +34,12 @@ jobs:
           echo "found_changes=true" >> $GITHUB_ENV
         fi
 
+    - name: notes
+      if: env.found_changes == 'true'
+      id: notes
+      run: |
+        echo "NOTES=$(<notes.txt)" >> $GITHUB_ENV
+
     - name: git
       if: env.found_changes == 'true'
       run: |
@@ -43,8 +49,8 @@ jobs:
     - name: commit
       if: env.found_changes == 'true'
       run: |
-        git add .
-        git commit -m "Release $(date +'%Y_%m_%d')"
+        git add qlibs
+        git commit -m "release: $(date +'%Y_%m_%d')"
 
     - name: tag
       if: env.found_changes == 'true'
@@ -69,8 +75,8 @@ jobs:
           <a href="https://qlibs.github.io"><img style="width:50%" src="https://qlibs.github.io/img/qlibs_logo.png" /></a>
 
           ## Libraries
-
-          $(cat notes.txt)
+#
+          ${{ env.NOTES }}
 
           ## FAQ
 
