@@ -60,7 +60,7 @@ jobs:
         tag_name: ${{ env.TAG_NAME }}
         release_name: ${{ env.TAG_NAME }}
         body: |
-          <a href="https://qlibs.github.io"><img width="30%" src="https://qlibs.github.io/img/qlibs_logo.png" /></a>
+          <a href="https://qlibs.github.io"><img width="25%" src="https://qlibs.github.io/img/qlibs_logo.png" /></a>
 
           ## Libraries
 
