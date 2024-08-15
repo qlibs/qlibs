@@ -74,19 +74,19 @@ jobs:
             include(FetchContent)
 
             FetchContent_Declare(
-                flux
-                GIT_REPOSITORY https://github.com/qlibs/qlibs
-                GIT_TAG ${{ env.TAG_NAME }}
+              qlibs
+              GIT_REPOSITORY https://github.com/qlibs/qlibs
+              GIT_TAG ${{ env.TAG_NAME }}
             )
 
             FetchContent_MakeAvailable(qlibs)
             ```
 
             ```
-            target_link_libraries(${PROJECT_NAME} PUBLIC qlibs::qlibs);
+            target_link_libraries(${PROJECT_NAME} PUBLIC qlibs);
             ```
 
-          > [https://github.com/cpm-cmake](cpm-cmake)
+          > [cpm-cmake](https://github.com/cpm-cmake)
 
             ```
             CPMAddPackage(
@@ -96,11 +96,10 @@ jobs:
             )
             add_library(qlibs INTERFACE)
             target_include_directories(qlibs SYSTEM INTERFACE ${qlibs_SOURCE_DIR})
-            add_library(qlibs::qlibs ALIAS qlibs)
             ```
 
             ```
-            target_link_libraries(${PROJECT_NAME} PUBLIC qlibs::qlibs);
+            target_link_libraries(${PROJECT_NAME} PUBLIC qlibs);
             ```
 
         draft: false
