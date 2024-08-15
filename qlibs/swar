@@ -732,3 +732,4 @@ static_assert(([] {
 #endif // NTEST
 #endif // SWAR
 #endif // README
+
