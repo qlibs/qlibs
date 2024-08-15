@@ -10,6 +10,8 @@ for lib in $LIBS; do
 
   if [ "$release" != "" ]; then
     wget -q -P qlibs https://raw.githubusercontent.com/qlibs/$lib/$release/$lib
+
+    echo "- $lib-$release - https://github.com/qlibs/$lib"
   fi
 
 done

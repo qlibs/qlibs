@@ -22,7 +22,7 @@ jobs:
 
     - name: release
       run: |
-        .github/scripts/release.sh || echo "Nothing to release" && exit 0
+        .github/scripts/release.sh > notes.txt || echo "Nothing to release" && exit 0
 
     - name: changes
       id: check-changes
@@ -33,6 +33,12 @@ jobs:
         else
           echo "found_changes=true" >> $GITHUB_ENV
         fi
+
+    - name: notes
+      if: env.found_changes == 'true'
+      id: read_release_notes
+      run: |
+        echo "NOTES=$(cat notes.txt)" >> $GITHUB_ENV
 
     - name: git
       if: env.found_changes == 'true'
@@ -65,6 +71,29 @@ jobs:
       with:
         tag_name: ${{ env.TAG_NAME }}
         release_name: ${{ env.TAG_NAME }}
-        body: "Release: ${{ env.TAG_NAME }}"
+        body: |
+          <a href="https://qlibs.github.io"><img style="width:50%" src="https://qlibs.github.io/img/qlibs_logo.png" /></a>
+
+          ## Libraries
+
+          ${{ env.NOTES }}
+
+          ## FAQ
+
+          - How to integrate with CMake/CPM?
+
+            ```
+            CPMAddPackage(
+              Name qlibs
+              GITHUB_REPOSITORY qlibs/qlibs
+              GIT_TAG ${{ env.TAG_NAME }}
+            )
+            add_library(qlibs INTERFACE)
+            target_include_directories(qlibs SYSTEM INTERFACE ${qlibs_SOURCE_DIR}) add_library(qlibs::qlibs ALIAS qlibs)
+            ```
+
+            ```
+            target_link_libraries(${PROJECT_NAME} qlibs::qlibs);
+            ```
         draft: false
         prerelease: false
