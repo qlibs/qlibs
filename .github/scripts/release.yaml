@@ -1,0 +1,46 @@
+name: Release
+
+on:
+  workflow_dispatch:
+  #schedule:
+    #- cron: '0 0 * * *'
+
+jobs:
+  daily-release:
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v3
+
+    - name: Release
+      run: |
+        .gihtub/scripts/release.sh
+
+    - name: Git
+      run: |
+        git config user.name "qlibs@github.com"
+        git config user.email "noreply@github.com"
+
+    - name: Commit
+      run: |
+        git add .
+        git commit -m "Release $(date +'%Y_%m_%d')"
+
+    - name: Tag
+      run: |
+        TAG_NAME=$(date +'%Y_%m_%d')
+        git tag $TAG_NAME
+        git push origin $TAG_NAME
+
+    - name: Push
+      run: git push origin main
+
+    - name: GitHub Release
+      uses: actions/create-release@v1
+      with:
+        tag_name: ${{ github.ref_name }}
+        release_name: ${{ github.ref_name }}
+        body: "Release for ${{ github.ref_name }}"
+        draft: false
+        prerelease: false
