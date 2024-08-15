@@ -34,12 +34,6 @@ jobs:
           echo "found_changes=true" >> $GITHUB_ENV
         fi
 
-    - name: notes
-      if: env.found_changes == 'true'
-      id: read_release_notes
-      run: |
-        echo "NOTES=$(cat notes.txt)" >> $GITHUB_ENV
-
     - name: git
       if: env.found_changes == 'true'
       run: |
@@ -76,7 +70,7 @@ jobs:
 
           ## Libraries
 
-          ${{ env.NOTES }}
+          $(cat notes.txt)
 
           ## FAQ
 
