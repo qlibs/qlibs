@@ -68,7 +68,7 @@ jobs:
 
           ## Integration
 
-          > [FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html)
+          > [CMake.FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html)
 
             ```
             include(FetchContent)
@@ -80,22 +80,6 @@ jobs:
             )
 
             FetchContent_MakeAvailable(qlibs)
-            ```
-
-            ```
-            target_link_libraries(${PROJECT_NAME} PUBLIC qlibs);
-            ```
-
-          > [cpm-cmake](https://github.com/cpm-cmake)
-
-            ```
-            CPMAddPackage(
-              Name qlibs
-              GITHUB_REPOSITORY qlibs/qlibs
-              GIT_TAG ${{ env.TAG_NAME }}
-            )
-            add_library(qlibs INTERFACE)
-            target_include_directories(qlibs SYSTEM INTERFACE ${qlibs_SOURCE_DIR})
             ```
 
             ```
