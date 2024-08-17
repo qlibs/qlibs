@@ -46,7 +46,7 @@ jobs:
 
     - name: tag
       run: |
-        TAG_NAME=qlibs-$(date +'%Y.%m.%d').00
+        TAG_NAME=qlibs-$(date +'%Y_%m_%d').00
         echo "TAG_NAME=$TAG_NAME" >> $GITHUB_ENV
         git tag $TAG_NAME
         git push origin $TAG_NAME
