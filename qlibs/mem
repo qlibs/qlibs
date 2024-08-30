@@ -23,16 +23,16 @@
 //
 #if 0
 // -->
+[Overview](#Overview) / [Examples](#Examples) / [API](#API) / [FAQ](#FAQ)
+
+## MEM: Memory Allocators
+
 [![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
-[![Version](https://badge.fury.io/gh/qlibs%2Fmem.svg)](https://github.com/qlibs/mem/releases)
-[![build](https://img.shields.io/badge/build-blue.svg)](https://godbolt.org/z/ensvKohTs)
-[![Try it online](https://img.shields.io/badge/try%20it-online-blue.svg)](https://godbolt.org/z/cqch69rGh)
+[![Version](https://img.shields.io/github/v/release/qlibs/mem)](https://github.com/qlibs/mem/releases)
+[![Build](https://img.shields.io/badge/build-green.svg)](https://godbolt.org/z/ensvKohTs)
+[![Try it online](https://img.shields.io/badge/try%20it-online-blue.svg)](https://godbolt.org/z/EhvvnnGvE)
 
----------------------------------------
-
-## mem: Memory Allocators
-
-> [https://en.wikipedia.org/wiki/Allocator_C++](https://en.wikipedia.org/wiki/Allocator_(C%2B%2B))
+  > [https://en.wikipedia.org/wiki/Allocator_C++](https://en.wikipedia.org/wiki/Allocator_(C%2B%2B))
 
 ### Features
 
@@ -52,6 +52,7 @@
 static_assert(mem::allocator<std::allocator<int>>);
 static_assert(mem::allocator<mem::stack_allocator<int, 1024u>>);
 static_assert(mem::allocator<mem::huge_page_allocator<int>>);
+static_assert(mem::allocator<mem::transparent_huge_page_allocator<int>>);
 static_assert(mem::allocator<mem::numa_allocator<int>>);
 ```
 
@@ -62,6 +63,11 @@ std::vector<int, mem::stack_allocator<int, 1024u>> v{};
 ```cpp
 // echo 20 > /proc/sys/vm/nr_hugepages
 std::vector<int, mem::huge_page_allocator<int>> v{};
+```
+
+```cpp
+// echo always > /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/enabled
+std::vector<int, mem::transparent_huge_page_allocator<int>> v{};
 ```
 
 ```cpp
@@ -124,26 +130,38 @@ struct huge_page_allocator {
   constexpr void deallocate(T *ptr, std::size_t n) noexcept;
 };
 
+template <class T,
+          std::size_t N = (1u << 21u),
+          auto on_error = [] { return nullptr; }>
+struct transparent_huge_page_allocator {
+  using value_type = T;
+
+  constexpr transparent_huge_page_allocator() noexcept = default;
+
+  T *allocate(std::size_t n);
+
+  #if __cpp_lib_allocate_at_least >= 202302L
+  constexpr std::allocation_result<T*, std::size_t>
+  allocate_at_least(std::size_t n) noexcept(noexcept(allocate(n));
+  #endif
+
+  constexpr void deallocate(T *ptr, std::size_t n) noexcept;
+};
+
 template<class T, auto on_error = [] { return nullptr; }>
 struct numa_allocator {
   using value_type = T;
 
   constexpr numa_allocator(node_type node = {}) noexcept;
 
-  /**
-   * The size argument (n) will be rounded up to a multiple of the system page size.
-   */
   [[nodiscard]] constexpr auto allocate(std::size_t n) noexcept(noexcept(on_error())) -> T*;
-
-  /**
-   * The size argument (n) will be rounded up to a multiple of the system page size.
-   */
-  constexpr void deallocate(T* ptr, std::size_t n) noexcept;
 
   #if __cpp_lib_allocate_at_least >= 202302L
   constexpr std::allocation_result<T*, std::size_t>
   allocate_at_least(std::size_t n) noexcept(noexcept(allocate(n));
   #endif
+
+  constexpr void deallocate(T* ptr, std::size_t n) noexcept;
 };
 ```
 
@@ -151,37 +169,46 @@ struct numa_allocator {
 
 ### FAQ
 
-- How to integrate with CMake/CPM?
+- How to integrate with [CMake.FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html)?
 
     ```
-    CPMAddPackage(
-      Name mem
-      GITHUB_REPOSITORY qlibs/mem
-      GIT_TAG v1.0.0
+    include(FetchContent)
+
+    FetchContent_Declare(
+      qlibs.mem
+      GIT_REPOSITORY https://github.com/qlibs/mem
+      GIT_TAG v1.0.1
     )
-    add_library(mp INTERFACE)
-    target_include_directories(mp SYSTEM INTERFACE ${mp_SOURCE_DIR})
-    add_library(mem::mem ALIAS mem)
+
+    FetchContent_MakeAvailable(qlibs.mem)
     ```
 
     ```
-    target_link_libraries(${PROJECT_NAME} mem::mem)
+    target_link_libraries(${PROJECT_NAME} PUBLIC qlibs.mem);
     ```
 
 - Acknowledgments
 
-  > - https://en.cppreference.com/w/cpp/memory/allocator
+  > std::allocator
+    > - https://eel.is/c++draft/allocator.requirements,
+    > - https://en.cppreference.com/w/cpp/memory/allocator
 
-  > - https://www.kernel.org/doc/html/latest/admin-guide/mm/hugetlbpage.html
-  > - https://www.man7.org/linux/man-pages/man2/mmap.2.html
-  > - https://www.intel.com/content/www/us/en/docs/programmable/683840/1-2-1/enabling-hugepages.html
-  > - https://github.com/libhugetlbfs/libhugetlbfs
-  > - https://wiki.debian.org/Hugepages
+  > Huge Pages (HP)
+    > - https://www.kernel.org/doc/html/latest/admin-guide/mm/hugetlbpage.html,
+    > - https://www.man7.org/linux/man-pages/man2/mmap.2.html,
+    > - https://www.intel.com/content/www/us/en/docs/programmable/683840/1-2-1/enabling-hugepages.html,
+    > - https://github.com/libhugetlbfs/libhugetlbfs,
+    > - https://wiki.debian.org/Hugepages
 
-  > - https://en.wikipedia.org/wiki/Non-uniform_memory_access
-  > - https://man7.org/linux/man-pages/man3/numa.3.html
-  > - https://www.intel.com/content/www/us/en/developer/articles/technical/use-intel-quickassist-technology-efficiently-with-numa-awareness.html
+  > Transparent Huge Pages (THP)
+    > - https://www.kernel.org/doc/html/latest/admin-guide/mm/transhuge.html
+    > - https://man7.org/linux/man-pages/man2/madvise.2.html
+    > - https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/6/html/performance_tuning_guide/s-memory-transhuge
 
+  > Non uniform memory access (NUMA)
+    > - https://en.wikipedia.org/wiki/Non-uniform_memory_access,
+    > - https://man7.org/linux/man-pages/man3/numa.3.html,
+    > - https://www.intel.com/content/www/us/en/developer/articles/technical/use-intel-quickassist-technology-efficiently-with-numa-awareness.html
 <!--
 #endif
 
@@ -197,7 +224,7 @@ struct numa_allocator {
 #include <cstdint>
 #include <cstddef>
 
-namespace mem::inline v1_0_0 {
+namespace mem::inline v1_0_1 {
 template<class TAllocator>
 concept allocator = requires(TAllocator alloc, typename TAllocator::value_type* ptr, std::size_t n) {
   typename TAllocator::value_type;
@@ -209,7 +236,7 @@ concept allocator = requires(TAllocator alloc, typename TAllocator::value_type* 
 };
 } // mem
 
-namespace mem::inline v1_0_0 {
+namespace mem::inline v1_0_1 {
 template<class T, std::size_t N, std::size_t alignment = alignof(T), auto on_error = [] { return nullptr; }>
   requires (alignment <= alignof(std::max_align_t)) and (not (N % alignment))
 struct stack_allocator {
@@ -254,7 +281,7 @@ struct stack_allocator {
 
 #if __has_include(<sys/mman.h>)
 #include <sys/mman.h>
-namespace mem::inline v1_0_0 {
+namespace mem::inline v1_0_1 {
 /**
  * `echo 20 > /proc/sys/vm/nr_hugepages`
  * https://www.kernel.org/doc/html/latest/admin-guide/mm/hugetlbpage.html
@@ -298,12 +325,62 @@ struct huge_page_allocator {
     munmap(ptr, round(n));
   }
 };
+} // namespace mem
 #endif
-} // mem
+
+#if __has_include(<sys/mman.h>) and __has_include(<cstdlib>)
+#include <sys/mman.h>
+#include <cstdlib>
+namespace mem::inline v1_0_1 {
+/**
+ * `echo always > /sys/kernel/mm/transparent_hugepage/hugepages-2048kB/enabled`
+ * https://www.kernel.org/doc/html/latest/admin-guide/mm/transhuge.html
+ * https://man7.org/linux/man-pages/man2/madvise.2.html
+ * https://docs.redhat.com/en/documentation/red_hat_enterprise_linux/6/html/performance_tuning_guide/s-memory-transhuge
+ */
+template <class T, std::size_t N = (1u << 21u), auto on_error = [] { return nullptr; }>
+struct transparent_huge_page_allocator {
+  using value_type = T;
+  template<class U> struct rebind {
+    using other = transparent_huge_page_allocator<U, N, on_error>;
+  };
+
+  static constexpr auto size = N;
+  static constexpr auto prot = PROT_READ | PROT_WRITE;
+  static constexpr auto flags = MAP_PRIVATE | MAP_ANONYMOUS | MAP_POPULATE | MAP_HUGETLB;
+  static constexpr auto round = [](std::size_t n) { return (((n - 1u) / N) + 1u) * N; };
+
+  constexpr transparent_huge_page_allocator() noexcept = default;
+
+  [[nodiscard]] constexpr auto allocate(std::size_t n) noexcept(noexcept(on_error())) -> T* {
+    if (n > std::numeric_limits<std::size_t>::max() / sizeof(T)) [[unlikely]] {
+      return on_error();
+    }
+    void *ptr{};
+    posix_memalign(&ptr, N, n * sizeof(T));
+    madvise(ptr, n * sizeof(T), MADV_HUGEPAGE);
+    if (not ptr) [[unlikely]] {
+      return on_error();
+    }
+    return static_cast<T*>(ptr);
+  }
+
+  #if __cpp_lib_allocate_at_least >= 202302L
+  constexpr std::allocation_result<T*, std::size_t> allocate_at_least(std::size_t n) noexcept(noexcept(allocate(n)) {
+    return { allocate(n), round(n * sizeof(T)) / sizeof(T) };
+  }
+  #endif
+
+  constexpr void deallocate(T *ptr, [[maybe_unused]] std::size_t n) noexcept {
+    std::free(ptr);
+  }
+};
+} // namespace mem
+#endif
 
 #if __has_include(<numa.h>)
 #include <numa.h>
-namespace mem::inline v1_0_0 {
+namespace mem::inline v1_0_1 {
 /**
  * `-lnuma`
  * https://en.wikipedia.org/wiki/Non-uniform_memory_access
@@ -331,6 +408,12 @@ struct numa_allocator {
     return std::bit_cast<T*>(ptr);
   }
 
+  #if __cpp_lib_allocate_at_least >= 202302L
+  constexpr std::allocation_result<T*, std::size_t> allocate_at_least(std::size_t n) noexcept(noexcept(allocate(n)) {
+    return { allocate(n), n };
+  }
+  #endif
+
   /**
    * The size argument (n) will be rounded up to a multiple of the system page size.
    */
@@ -338,15 +421,9 @@ struct numa_allocator {
     numa_free(ptr, n * sizeof(T));
   }
 
-  #if __cpp_lib_allocate_at_least >= 202302L
-  constexpr std::allocation_result<T*, std::size_t> allocate_at_least(std::size_t n) noexcept(noexcept(allocate(n)) {
-    return { allocate(n), n };
-  }
-  #endif
-
   node_type node{};
 };
-} // mem
+} // namespace mem
 #endif
 
 #ifndef NTEST
@@ -383,6 +460,18 @@ static_assert(([] {
     static_assert([]<class T, auto... Vs> { return requires { mem::huge_page_allocator<T, Vs...>{}; }; }.template operator()<int, 32u>());
     static_assert(sizeof(empty) == sizeof(mem::huge_page_allocator<int>));
     mem::huge_page_allocator<int> allocator{};
+    static_assert(1u << 21u == allocator.size);
+  }
+  #endif
+
+  #if __has_include(<sys/mman.h>) and __has_include(<cstdlib>)
+  // mem::transparent_huge_page_allocator
+  {
+    struct empty { };
+    static_assert([]<class T, auto... Vs> { return requires { mem::transparent_huge_page_allocator<T, Vs...>{}; }; }.template operator()<int>());
+    static_assert([]<class T, auto... Vs> { return requires { mem::transparent_huge_page_allocator<T, Vs...>{}; }; }.template operator()<int, 32u>());
+    static_assert(sizeof(empty) == sizeof(mem::huge_page_allocator<int>));
+    mem::transparent_huge_page_allocator<int> allocator{};
     static_assert(1u << 21u == allocator.size);
   }
   #endif

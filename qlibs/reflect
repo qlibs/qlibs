@@ -1,28 +1,42 @@
 // <!--
+// The MIT License (MIT)
 //
-// Copyright (c) 2024 Kris Jusiak (kris at jusiak dot net)
+// Copyright (c) 2024 Kris Jusiak <kris@jusiak.net>
 //
-// Distributed under the Boost Software License, Version 1.0.
-// (See accompanying file LICENSE_1_0.txt or copy at
-// http://www.boost.org/LICENSE_1_0.txt)
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
 //
-#ifdef README
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+#if 0
 // -->
-[![Boost Licence](http://img.shields.io/badge/license-boost-blue.svg)](http://www.boost.org/LICENSE_1_0.txt)
-[![Version](https://badge.fury.io/gh/boost-ext%2Freflect.svg)](https://github.com/boost-ext/reflect/releases)
-[![build](https://img.shields.io/badge/build-blue.svg)](https://godbolt.org/z/zvooxGPP9)
+[Overview](#Overview) / [Examples](#Examples) / [API](#API) / [FAQ](#FAQ)
+
+## REFLECT: C++20 Static Reflection library
+
+[![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
+[![Version](https://img.shields.io/github/v/release/qlibs/reflect)](https://github.com/qlibs/reflect/releases)
+[![Build](https://img.shields.io/badge/build-green.svg)](https://godbolt.org/z/zvooxGPP9)
 [![Try it online](https://img.shields.io/badge/try%20it-online-blue.svg)](https://godbolt.org/z/oYhh1hfeo)
 
----------------------------------------
-
-## C++20 minimal static reflection library
-
-> https://en.wikipedia.org/wiki/Reflective_programming
+  > https://en.wikipedia.org/wiki/Reflective_programming
 
 ### Features
 
-- Single header (https://raw.githubusercontent.com/boost-ext/reflect/main/reflect)
-    - Easy integration (see [FAQ](#faq))
+- Single header (https://raw.githubusercontent.com/qlibs/reflect/main/reflect - for integration see [FAQ](#faq))
 - Minimal [API](#api)
 - Verifies itself upon include (can be disabled with `-DNTEST` - see [FAQ](#faq))
     - Basically guarantees no UB, no memory leaks*
@@ -34,11 +48,12 @@
 ### Requirements
 
 - C++20 ([gcc-12+, clang-15+, msvc-19.36+](https://godbolt.org/z/xPc19Moef))
-    - STL headers (array, string_view, source_location, type_traits, utility, [tuple])
 
 ---
 
-### Hello world (https://godbolt.org/z/oYhh1hfeo)
+### Overview
+
+> Hello world (https://godbolt.org/z/oYhh1hfeo)
 
 ```cpp
 #include <reflect>
@@ -99,14 +114,16 @@ int main() {
 ### Examples
 
 - [feature] Opt-in mixins - https://godbolt.org/z/sj7fYKoc3
-- [feature] Meta-programming (https://github.com/boost-ext/mp) - https://godbolt.org/z/ds3KMGhqP
+- [feature] Meta-programming (https://github.com/qlibs/mp) - https://godbolt.org/z/ds3KMGhqP
 - [future] Structured Bindings can introduce a Pack (https://wg21.link/P1061) - https://godbolt.org/z/Ga3bc3KKW
-- [performance] Minimal-Perfect-Hashing based `enum_name` (https://github.com/boost-ext/mph) - https://godbolt.org/z/WM155vTfv
+- [performance] Minimal Perfect Hashing based `enum_name` (https://github.com/qlibs/mph) - https://godbolt.org/z/WM155vTfv
 
 ---
 
 <a name="perf"></a>
-### Performance/Binary size (https://godbolt.org/z/7TbobjWfj)
+### Performance
+
+> Binary size (https://godbolt.org/z/7TbobjWfj)
 
 ```cpp
 struct foo { int bar; };
@@ -168,7 +185,7 @@ enum_name<1ul>:
 <a name="comp"></a>
 ### Compilation times
 
-> [include] https://raw.githubusercontent.com/boost-ext/reflect/main/reflect
+> [include] https://raw.githubusercontent.com/qlibs/reflect/main/reflect
 
 ```cpp
 time g++-13.2 -x c++ -std=c++20 reflect -c -DNTEST   # 0.113s
@@ -404,7 +421,7 @@ static_assert(4 == offset_of<1, foo>());
 ```
 
 ```cpp
-template<class Fn, class T>
+template<class T, class Fn>
   requires std::is_aggregate_v<std::remove_cvref_t<T>>
 constexpr auto for_each(Fn&& fn) -> void;
 
@@ -424,14 +441,12 @@ reflect::for_each([&f](const auto I) {
 > Configuration
 
 ```cpp
-#define REFLECT 1'2'2           // Current library version (SemVer)
 #define REFLECT_ENUM_MIN 0      // Min size for enum name (can be overridden)
                                 // For example: `-DREFLECT_ENUM_MIN=-1`
 #define REFLECT_ENUM_MAX 128    // Max size for enum name (can be overridden)
                                 // For example: `-DREFLECT_ENUM_MAX=32`
-#define NTEST                   // Disables running static_asserts tests
-                                // Not enabled by default (use with caution)
 ```
+
 ---
 
 ### FAQ
@@ -477,29 +492,29 @@ reflect::for_each([&f](const auto I) {
     }
     ```
 
-- How to integrate with CMake/CPM?
+- How to integrate with [CMake.FetchContent](https://cmake.org/cmake/help/latest/module/FetchContent.html)?
 
     ```
-    CPMAddPackage(
-      Name reflect
-      GITHUB_REPOSITORY boost-ext/reflect
-      GIT_TAG v1.2.2
+    include(FetchContent)
+
+    FetchContent_Declare(
+      qlibs.reflect
+      GIT_REPOSITORY https://github.com/qlibs/reflect
+      GIT_TAG v1.2.3
     )
-    add_library(reflect INTERFACE)
-    target_include_directories(reflect SYSTEM INTERFACE ${reflect_SOURCE_DIR})
-    add_library(reflect::reflect ALIAS reflect)
+
+    FetchContent_MakeAvailable(qlibs.reflect)
     ```
 
     ```
-    target_link_libraries(${PROJECT_NAME} reflect::reflect);
+    target_link_libraries(${PROJECT_NAME} PUBLIC qlibs.reflect);
     ```
-
 - Similar projects?
     > [boost.pfr](https://github.com/boostorg/pfr), [glaze](https://github.com/stephenberry/glaze), [reflect-cpp](https://github.com/getml/reflect-cpp), [magic_enum](https://github.com/Neargye/magic_enum)
 <!--
-#else
-#ifndef REFLECT
-#define REFLECT 1'2'2 // SemVer
+#endif
+
+#pragma once
 
 #include <array>
 #include <string_view>
@@ -527,7 +542,7 @@ template<> struct REFLECT_FWD_LIKE<true> { template<class T> using type = std::r
 #define REFLECT_FWD_LIKE(T, ...) static_cast<typename ::REFLECT_FWD_LIKE<::std::is_lvalue_reference_v<T>>::template type<decltype(__VA_ARGS__)>>(__VA_ARGS__)
 struct  REFLECT_STRUCT { void* MEMBER; enum class ENUM { VALUE }; }; // has to be in the global namespace
 
-namespace reflect::inline v1_2_2 {
+namespace reflect::inline v1_2_3 {
 namespace detail {
 template<class T> extern const T ext{};
 struct any { template<class T> operator T() const noexcept; };
@@ -592,17 +607,17 @@ struct fixed_string {
   [[nodiscard]] constexpr auto operator<=>(const fixed_string&) const = default;
   [[nodiscard]] constexpr explicit(false) operator std::string_view() const { return {std::data(data), Size}; }
   [[nodiscard]] constexpr auto size() const { return Size; }
-  T data[Size+1];
+  T data[Size + 1u];
 };
 template<class T, std::size_t Capacity, std::size_t Size = Capacity-1> fixed_string(const T (&str)[Capacity]) -> fixed_string<T, Size>;
 
 namespace detail {
-template<class T, std::size_t Bases = 0, class... Ts> requires std::is_aggregate_v<T>
+template<class T, std::size_t Bases = 0u, class... Ts> requires std::is_aggregate_v<T>
 [[nodiscard]] constexpr auto size() -> std::size_t {
   if constexpr (requires { T{Ts{}...}; } and not requires { T{Ts{}..., detail::any{}}; }) {
     return sizeof...(Ts) - Bases;
   } else if constexpr (Bases == sizeof...(Ts) and requires { T{Ts{}...}; } and not requires { T{Ts{}..., detail::any_except_base_of<T>{}}; }) {
-    return size<T, Bases + 1, Ts..., detail::any>();
+    return size<T, Bases + 1u, Ts..., detail::any>();
   } else {
     return size<T, Bases, Ts..., detail::any>();
   }
@@ -738,24 +753,44 @@ struct static_vector {
   std::array<T, Size> values_{};
   std::size_t size_{};
 };
-#if defined(__clang__) and (__clang_major__ > 15)
-  #pragma clang diagnostic push
-  #pragma clang diagnostic ignored "-Wenum-constexpr-conversion"
-#endif
 template<class E, auto N> requires std::is_enum_v<E>
 [[nodiscard]] constexpr auto enum_name() {
-  constexpr auto fn_name = detail::function_name<static_cast<E>(N)>();
-  constexpr auto name = fn_name.substr(detail::enum_name_info::begin, std::size(fn_name)-detail::enum_name_info::end-detail::enum_name_info::begin);
+  constexpr auto fn_name = function_name<static_cast<E>(N)>();
+  constexpr auto name = fn_name.substr(enum_name_info::begin, std::size(fn_name)-enum_name_info::end-enum_name_info::begin);
   constexpr auto enum_name = name.substr(name.find_last_of("::")+1);
   static_assert(std::size(enum_name) > 0u);
   return data<fixed_string<std::remove_cvref_t<decltype(enum_name[0])>, std::size(enum_name)>{std::data(enum_name)}>();
 }
+#if defined(__clang__)
+#if (__clang_major__ > 15) and (__clang_major__ < 19)
+  #pragma clang diagnostic push
+  #pragma clang diagnostic ignored "-Wenum-constexpr-conversion"
+#endif
 template<class E, auto Min, auto Max> requires (std::is_enum_v<E> and Max > Min)
 inline constexpr auto enum_cases = []<auto... Ns>(std::index_sequence<Ns...>) {
-  const auto names = detail::function_name<static_cast<E>(Ns+Min)...>();
-  const auto begin = detail::enum_name_info::begin;
-  const auto end = std::size(names) - detail::enum_name_info::end;
-  detail::static_vector<std::underlying_type_t<E>, sizeof...(Ns)> cases{};
+  static_vector<std::underlying_type_t<E>, sizeof...(Ns)> cases{};
+  ([&] {
+    if constexpr (requires { function_name<static_cast<E>(Ns+Min)>(); }) {
+      const auto fn_name = function_name<static_cast<E>(Ns+Min)>();
+      const auto name = fn_name.substr(enum_name_info::begin, std::size(fn_name)-enum_name_info::end-enum_name_info::begin);
+      const auto enum_name = name.substr(name.find_last_of("::")+1);
+      if (enum_name.find(")") == std::string_view::npos) {
+        cases.push_back(std::underlying_type_t<E>(Ns+Min));
+      }
+    }
+  }(), ...);
+  return cases;
+}(std::make_index_sequence<Max-Min+1/*inclusive*/>{});
+#if (__clang_major__ > 15) and (__clang_major__ < 19)
+  #pragma clang diagnostic pop
+#endif
+#else
+template<class E, auto Min, auto Max> requires (std::is_enum_v<E> and Max > Min)
+inline constexpr auto enum_cases = []<auto... Ns>(std::index_sequence<Ns...>) {
+  const auto names = function_name<static_cast<E>(Ns+Min)...>();
+  const auto begin = enum_name_info::begin;
+  const auto end = std::size(names) - enum_name_info::end;
+  static_vector<std::underlying_type_t<E>, sizeof...(Ns)> cases{};
   std::underlying_type_t<E> index{};
   auto valid = true;
   for (auto i = begin; i < end; ++i) {
@@ -771,8 +806,6 @@ inline constexpr auto enum_cases = []<auto... Ns>(std::index_sequence<Ns...>) {
   }
   return cases;
 }(std::make_index_sequence<Max-Min+1/*inclusive*/>{});
-#if defined(__clang__) and (__clang_major__ > 15)
-  #pragma clang diagnostic pop
 #endif
 } // namespace detail
 
@@ -792,12 +825,12 @@ template<class E, fixed_string unknown = "", auto Min = enum_min(E{}), auto Max 
   if constexpr (constexpr auto cases = enumerators<E, Min, Max>; std::empty(cases)) {
     return unknown;
   } else {
-    const auto switch_case = [&]<auto I = 0>(auto switch_case, const auto value) -> std::string_view {
+    const auto switch_case = [&]<std::size_t I = 0u>(auto switch_case, const auto value) -> std::string_view {
       if constexpr (I == std::size(cases)) {
         return unknown;
       } else {
         switch (value) {
-          default:             return switch_case.template operator()<I+1>(switch_case, value);
+          default:             return switch_case.template operator()<I + 1u>(switch_case, value);
           case cases[I].first: return cases[I].second;
         }
       }
@@ -1047,13 +1080,15 @@ enum e {
 enum e1 { e1a };
 enum class e2 : std::uint8_t { e2a, e2b };
 enum e3 { e3a, e3b, e3c, };
-enum class e4 : std::int32_t { e4a, e4b = 77, e4c, e4d = 42, };
+enum class e4 : std::int32_t { e4a, e4b = 5, e4c, e4d = 2, };
 consteval auto enum_min(e) { return e::_141; }
 consteval auto enum_max(e) { return e::_142; }
+void failed(); auto expect = [](bool cond) { if (not cond) { failed(); } };
 } // reflect::test
 
-static_assert(([]<auto expect = [](const bool cond) { return std::array{true}[not cond]; }> {
+static_assert(([] {
   using namespace reflect;
+  using test::expect;
 
   // nth_pack_element
   {
@@ -1285,23 +1320,23 @@ static_assert(([]<auto expect = [](const bool cond) { return std::array{true}[no
   #ifndef _MSC_VER
   // enumerators
   {
-    static_assert(1u == enumerators<reflect::test::e1>.size());
-    static_assert(0u == enumerators<reflect::test::e1>[0].first);
+    static_assert(1u == enumerators<reflect::test::e1, 0, 1>.size());
+    static_assert(0u == enumerators<reflect::test::e1, 0, 1>[0].first);
 
-    static_assert(2u == enumerators<reflect::test::e2>.size());
-    static_assert(std::uint8_t(0) == enumerators<reflect::test::e2>[0].first);
-    static_assert(std::uint8_t(1) == enumerators<reflect::test::e2>[1].first);
+    static_assert(2u == enumerators<reflect::test::e2, 0, 2>.size());
+    static_assert(std::uint8_t(0) == enumerators<reflect::test::e2, 0, 2>[0].first);
+    static_assert(std::uint8_t(1) == enumerators<reflect::test::e2, 0, 2>[1].first);
 
-    static_assert(3u == enumerators<reflect::test::e3>.size());
-    static_assert(0u == enumerators<reflect::test::e3>[0].first);
-    static_assert(1u == enumerators<reflect::test::e3>[1].first);
-    static_assert(2u == enumerators<reflect::test::e3>[2].first);
+    static_assert(3u == enumerators<reflect::test::e3, 0, 3>.size());
+    static_assert(0u == enumerators<reflect::test::e3, 0, 3>[0].first);
+    static_assert(1u == enumerators<reflect::test::e3, 0, 3>[1].first);
+    static_assert(2u == enumerators<reflect::test::e3, 0, 3>[2].first);
 
-    static_assert(4u == enumerators<reflect::test::e4>.size());
-    static_assert(0 == enumerators<reflect::test::e4>[0].first);
-    static_assert(42 == enumerators<reflect::test::e4>[1].first);
-    static_assert(77 == enumerators<reflect::test::e4>[2].first);
-    static_assert(78 == enumerators<reflect::test::e4>[3].first);
+    static_assert(4u == enumerators<reflect::test::e4, 0, 6>.size());
+    static_assert(0 == enumerators<reflect::test::e4, 0, 6>[0].first);
+    static_assert(2 == enumerators<reflect::test::e4, 0, 6>[1].first);
+    static_assert(5 == enumerators<reflect::test::e4, 0, 6>[2].first);
+    static_assert(6 == enumerators<reflect::test::e4, 0, 6>[3].first);
   }
   #endif
 
@@ -1327,7 +1362,6 @@ static_assert(([]<auto expect = [](const bool cond) { return std::array{true}[no
         A = 0,
         B = 1,
       };
-
 
       static_assert([](const auto e) { return requires { enum_name<foobar,"",1,2>(e); }; }(foobar::foo));
       static_assert([](const auto e) { return requires { enum_name<mask,"",1,2>(e); }; }(mask::a));
@@ -1769,5 +1803,3 @@ static_assert(([]<auto expect = [](const bool cond) { return std::array{true}[no
   }
 }(), true));
 #endif // NTEST
-#endif // REFLECT
-#endif // README
