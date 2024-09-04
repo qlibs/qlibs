@@ -1,0 +1,1269 @@
+// <!--
+// The MIT License (MIT)
+//
+// Copyright (c) 2024 Kris Jusiak <kris@jusiak.net>
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in all
+// copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+// SOFTWARE.
+//
+#if 0
+// -->
+[Overview](#Overview) / [Examples](#Examples) / [API](#API) / [FAQ](#FAQ)
+
+## PERF: Benchmarking / Profiling / Analyzing library
+
+[![MIT Licence](http://img.shields.io/badge/license-MIT-blue.svg)](https://opensource.org/license/mit)
+[![Version](https://img.shields.io/github/v/release/qlibs/perf)](https://github.com/qlibs/perf/releases)
+[![Build](https://img.shields.io/badge/build-green.svg)]()
+[![Try it online](https://img.shields.io/badge/try%20it-online-blue.svg)]()
+
+### Features
+
+- Single header (https://raw.githubusercontent.com/qlibs/perf/main/perf - for integration see [FAQ](https://github.com/qlibs/.github/blob/main/profile/INTEGRATION.md))
+- Unified Benchmarkig / Profiling / Analyzing with support for different performance workflows
+
+### Requirements
+
+- C++20 ([gcc-12+, clang-16+](https://en.cppreference.com/w/cpp/compiler_support))
+
+- #### Optional (for [docker](https://github.com/qlibs/perf/blob/main/Dockerfile) setup - see [FAQ](#FAQ))
+
+  > ut - https://github.com/qlibs/ut
+
+  > linux-perf - https://man7.org/linux/man-pages/man2/perf_event_open.2.html
+
+  > intel-vtune - https://www.intel.com/content/www/us/en/docs/vtune-profiler
+
+  > callgrind - https://valgrind.org/docs/manual/cl-manual.html
+
+  > osaca - https://github.com/RRZE-HPC/OSACA
+
+  > llvm-mca - https://llvm.org/docs/CommandGuide/llvm-mca.html
+
+  > llvm-xray - https://llvm.org/docs/XRay.html
+
+  > zydis - https://github.com/zyantific/zydis
+
+  > jupyter notebook - https://jupyter.org
+
+### Overview
+
+> `Benchmarking`
+
+```cpp
+int main() {
+  int i{};
+  timeit([&] {
+    do_not_optimize_away(i++);
+  });
+}
+```
+
+```
+$CXX -O3 bench.cpp && ./a.out
+```
+
+> `Analyzing`
+
+```cpp
+int main() {
+  analyze([](int i) { return i * 2; }); // llvm-mca, osaca (static analysis)
+}
+```
+
+```
+$CXX -O3 analyze.cpp -S -o - | osaca /dev/stdin
+```
+
+```cpp
+clang++ -O3 analyze.cpp -mllvm -x86-asm-syntax=intel -S -o - | llvm-mca -mcpu=skylake
+```
+
+> `Profiling`
+
+```cpp
+int main() {
+  profile(fn); // callgrind (emulation)
+}
+```
+
+```cpp
+$CXX -O3 profile.cpp -o profile
+valgrind --tool=callgrind \
+         --instr-atstart=no \
+         --branch-sim=yes \
+         --dump-instr=yes \
+         --collect-jumps=yes \
+         ./profile
+kcachegrind callgrind.*
+```
+
+> `Tracing`
+
+```cpp
+int main() {
+  trace(fn); // llvm-xray (instrumentation)
+}
+```
+
+```cpp
+clang++ -O3 -fxray-instrument trace.cpp - o trace
+llvm-xray account xray-log.* --top=10 --sort=sum --sortorder=dsc -instr_map=./trace
+```
+
+> `Sampling`
+
+```cpp
+int main() {
+  sample(fn); // intel-vtune (sampling)
+}
+```
+
+```cpp
+$CXX -O3 sample.cpp -o sample trace -littnotify
+vtune -collect hotspots -start-paused -result-dir vtune-result -- ./sample
+vtune-gui vtune-result
+```
+
+> `Visualizing` (https://jupyter.org)
+
+```cpp
+int main() {
+  csv reporter{"perf.csv"};
+
+  timeit([] {
+    // fn1
+  });
+
+  timeit([] {
+    // fn2
+  });
+}
+```
+
+```cpp
+jupyter notebook -ip 0.0.0.0 --no-browser --allow-root results.ipynb
+```
+
+> `Testing` (https://github.com/qlibs/ut)
+
+```cpp
+int main() {
+  "benchmark"_test = [] mutable { // run-time
+    expect(timeit<"cycles">([]{})["branch_misses"] > timeit([]{}));
+  };
+
+  "asm"_test = [] mutable { // run-time
+    expect(disassemble(fn) == disassemble([] { asm ("lea $1, %eax"); }));
+    expect(disassemble(fn).size() == 3u);
+    expect(disassemble(fn) == {"lea.*"});
+  };
+}
+```
+
+```cpp
+$CXX -O3 test.cpp -o test && ./test --filter="benchmark.*"
+```
+
+> `Investigating`
+
+```cpp
+int main() {
+  // -DTRACER=::perf::llvm_xray<"xray-fdr">
+  {
+    TRACER::start();
+    run();
+    TRACER::stop();
+  }
+
+  // -DPROFILER=::perf::callgrind
+  {
+    SAMPLER::start();
+    run();
+    SAMPLER::stop();
+  }
+
+  // -DSAMPLER=::perf::intel_vtune
+  {
+    SAMPLER::start();
+    run();
+    SAMPLER::stop();
+  }
+
+  // -DSAMPLER=::perf::none
+  {
+    SAMPLER::start(); // empty call
+    run();
+    SAMPLER::stop(); // empty call
+  }
+}
+```
+
+#### API
+
+```cpp
+template<class T>
+concept tracer = requires(T t) { t.start(); t.stop(); };
+
+template<class T>
+concept profiler = requires(T t) { t.start(); t.stop(); };
+
+template<class T>
+concept sampler = requires(T t) { t.start(); t.stop(); };
+
+template<class T>
+concept analyzer = requires(T t) { t.begin(); t.end(); };
+
+template<cfg>
+constexpr void timeit(invocable auto fn);
+
+template<tracer... TTraces> // llvm_xray
+constexpr void trace(invocable auto fn);
+
+template<profiler... TProfilers> // callgrind
+constexpr void profile(invocable auto fn);
+
+template<sampler... TSamplers> // intel_vtune
+constexpr void sample(invocable auto fn);
+
+template<analyzer... TAnalyzers> // llvm_mca, osaca
+constexpr void analyze(invocable auto fn);
+
+#if __has_include(<Zydis/Zydis.h>)
+[[nodiscard]] constexpr auto disassemble(invocable auto fn) -> range auto;
+#endif
+
+#if __has_include(<linux/perf_event.h>)
+/**
+ * @tparam Events
+ * [software] "cpu-clock"
+ * [software] "task-clock"
+ * [software] "page-faults"
+ * [software] "faults"
+ * [software] "major-faults"
+ * [software] "minor-faults"
+ * [software] "alignment-faults"
+ * [software] "emulation-faults"
+ * [software] "context-switches"
+ * [software] "bpf-output"
+ * [software] "cgroup-switches"
+ * [software] "cpu-migrations"
+ * [software] "migrations"
+ * [hardware] "cycles"
+ * [hardware] "instructions"
+ * [hardware] "branch-misses"
+ * [hardware] "cpu-cycles"
+ * [hardware] "bus-cycles"
+ * [hardware] "cache-misses"
+ * [hardware] "cache-references"
+ * [hardware] "branches"
+ * [hardware] "branch-instructions"
+ * [hardware] "stalled-cycles-backend"
+ * [hardware] "idle-cycles-backend"
+ * [hardware] "stalled-cycles-frontend"
+ * [hardware] "idle-cycles-frontend"
+ * [hardware] "LLC-misses"
+ * [hw_cache] "L1-misses"
+ * [hw_cache] "L1-dcache-loads"
+ * [hw_cache] "L1-dcache-load-misses"
+ * [hw_cache] "L1-icache-loads"
+ * [hw_cache] "L1-icache-load-misses"
+ * [hw_cache] "dTLB-loads"
+ * [hw_cache] "dTLB-load-misses"
+ * [hw_cache] "iTLB-loads"
+ * [hw_cache] "iTLB-load-misses"
+ *
+ * @code
+ * int main() {
+ *   perf::counters<"cycles", "instructions", "branch-misses"> recorder;
+ *
+ *   recorder.start();
+ *   // ...
+ *   recorder.stop();
+ *
+ *   for (const auto& [name, value] : *recorder) {
+ *     std::print("{}:{}\n", name, value);
+ *   }
+ * }
+ * @endcode
+ */
+template<fixed_string... Events>
+  requires (sizeof...(Events) > 0u)
+class counters {
+ publiic:
+  constexpr auto start() -> bool;
+  constexpr auto stop() -> bool;
+  [[nodiscard]] constexpr auto operator*() const;
+};
+#endif
+
+#if __has_include(<valgrind/callgrind.h>)
+struct callgrind {
+  [[gnu::always_inline]] static inline auto start();
+  [[gnu::always_inline]] static inline auto stop();
+}
+#endif
+
+#if __has_include(<ittnotify.h>)
+struct intel_vtune {
+  [[gnu::always_inline]] static inline auto start();
+  [[gnu::always_inline]] static inline auto stop();
+};
+#endif
+
+#if __has_include(<xray/xray_interface.h>)
+template<fixed_string mode = "xray-fdr",
+         fixed_string cfg = "patch_premain=false;xray_logfile_base=xray-log.%">
+struct llvm_xray {
+  [[gnu::always_inline]] [[clang::xray_never_instrument]] static auto start();
+  [[gnu::always_inline]] [[clang::xray_never_instrument]] static auto stop();
+};
+#endif
+
+struct llvm_mca {
+  [[gnu::always_inline]] static inline auto begin();
+  [[gnu::always_inline]] static inline auto end();
+};
+
+struct osaca {
+  [[gnu::always_inline]] static inline auto begin();
+  [[gnu::always_inline]] static inline auto end();
+};
+
+struct cfg {
+  u32 warmup = 10u;
+  u32 max_epochs = 1'000'000;
+  u32 runs = 3u;
+};
+
+[[gnu::always_inline]] static inline void do_not_optimize_away(const auto& t) noexcept;
+[[gnu::always_inline]] static inline void do_not_optimize_away(auto& t) noexcept;
+[[gnu::always_inline]] static inline void do_not_optimize_away(auto&& t) noexcept;
+
+[[gnu::always_inline]] static inline void escape(void* p) noexcept;
+[[gnu::always_inline]] static inline void clobber() noexcept;
+
+[[gnu::always_inline]] static inline auto fence(std::memory_order order) noexcept;
+[[gnu::always_inline]] static inline auto compiler_fence() noexcept;
+```
+
+### Performance
+
+- Books
+
+  > Optimizing Software in C++: An Optimization Guide for Windows, Linux and Mac platforms - https://www.agner.org/optimize/optimizing_cpp.pdf
+
+  > Optimizing Subroutines in Assembly Language: An Optimization Guide for x86 platforms - https://www.agner.org/optimize/optimizing_assembly.pdf
+
+  > The Microarchitecture of Intel, AMD and VIA CPUs: An Optimization Guide for Assembly programmers and compiler makers - https://www.agner.org/optimize/microarchitecture.pdf
+
+  > Instruction Tables: Lists of instruction latencies, throughputs and micro-operation breakdowns for Intel, AMD and VIA CPUs - https://www.agner.org/optimize/instruction_tables.pdf
+
+  > Calling Conventions for different C++ compilers and operating systems - https://www.agner.org/optimize/calling_conventions.pdf
+
+  > What Every Programmer Should Know About Memory - https://www.akkadia.org/drepper/cpumemory.pdf
+
+  > Performance Analysis and Tuning on Modern CPUs - https://book.easyperf.net/perf_book
+
+  > Algorithms for Modern Hardware - https://en.algorithmica.org/hpc/
+
+  > Hackers Delight - https://doc.lagout.org/security/Hackers%20Delight.pdf
+
+  > Data-Oriented Design - https://www.dataorienteddesign.com/dodbook/node1.html
+
+  > Top-down Microarchitecture Analysis Method - https://www.intel.com/content/www/us/en/docs/vtune-profiler/cookbook/2023-0/top-down-microarchitecture-analysis-method.html
+
+
+- Manuals
+
+  > Intel - https://www.intel.com/content/www/us/en/developer/articles/technical/intel-sdm.html
+
+  > AMD - https://www.amd.com/content/dam/amd/en/documents/processor-tech-docs/programmer-references/24594.pdf
+
+  > ARM - https://developer.arm.com/documentation/ddi0487/latest/
+
+  > Apple - https://github.com/mikeroyal/Apple-Silicon-Guide, https://developer.apple.com/documentation/xcode/writing-arm64-code-for-apple-platforms
+
+
+- Cheatsheets
+
+  > Operation Costs in CPU Clock Cycles - http://ithare.com/infographics-operation-costs-in-cpu-clock-cycles
+
+  > Intel Intrinsics Guide - https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html
+
+  > X86 Intrinsics Cheatsheet - https://db.in.tum.de/~finis/x86-intrin-cheatsheet-v2.1.pdf
+
+  > Instruction Matrix - https://github.com/google/highway/blob/master/g3doc/instruction_matrix.pdf
+
+  > Microarchitecture Cheatsheet - https://docs.google.com/spreadsheets/d/18ln8SKIGRK5_6NymgdB9oLbTJCFwx0iFI-vUs6WFyuE
+
+  ```cpp
+  Speed of light ............................ ~1 foot/ns
+  L1 cache reference ......................... 0.5 ns
+  Branch mispredict ............................ 5 ns
+  L2 cache reference ........................... 7 ns
+  Mutex lock/unlock ........................... 25 ns
+  Main memory reference ...................... 100 ns
+  Send 2K bytes over 1 Gbps network ....... 20,000 ns  =  20 µs
+  SSD random read ........................ 150,000 ns  = 150 µs
+  Read 1 MB sequentially from memory ..... 250,000 ns  = 250 µs
+  Round trip within same datacenter ...... 500,000 ns  = 0.5 ms
+  Read 1 MB sequentially from SSD .....  1,000,000 ns  =   1 ms
+  Read 1 MB sequentially from disk .... 20,000,000 ns  =  20 ms
+  Send packet CA->UK->CA ....          150,000,000 ns  = 150 ms
+  ```
+
+  ```sh
+  # CPU info
+  cat /proc/cpuinfo
+
+  # System toplogy (apt-get install hwloc)
+  lstopo
+
+  # CPU scaling (apt-get install cpufrequtils)
+  cpupower frequency-info -o proc
+
+  # Cache info (apt-get install glibc-devel)
+  getconf -a | grep CACHE
+  ```
+
+  ```cpp
+  # Interactive process viewer (apt-get install htop)
+  htop
+  ```
+
+- Online
+
+  > https://compiler-explorer.com
+
+  > https://uops.info / https://uica.uops.info
+
+  > https://quick-bench.com
+
+  > https://chipsandcheese.com/memory-latency-data
+
+
+- Blogs
+
+  > https://www.agner.org/optimize
+
+  > https://lwn.net
+
+  > https://chipsandcheese.com
+
+  > https://wikichip.org
+
+  > https://www.phoronix.com
+
+  > https://lemire.me/blog
+
+  > http://0x80.pl/articles/index.html
+
+  > https://easyperf.net
+
+  > https://johnnysswlab.com
+
+  > https://jabperf.com/blog
+
+  > https://rigtorp.se
+
+  > https://brendangregg.com/perf.html
+
+  > https://branchfree.org
+
+
+- Lists
+
+  > https://github.com/MattPD/cpplinks
+
+  > https://github.com/fenbf/AwesomePerfCpp
+
+  > https://github.com/awesome-simd/awesome-simd
+
+  > https://github.com/rigtorp/awesome-lockfree
+
+
+- Tools
+
+  > linux-perf - https://perf.wiki.kernel.org/index.php/Main_Page
+
+  > intel-vtune - https://www.intel.com/content/www/us/en/docs/vtune-profiler
+
+  > amd-uprof - https://www.amd.com/en/developer/uprof.html
+
+  > callgrind - https://valgrind.org/docs/manual/cl-manual.html
+
+  > pyperf - https://github.com/psf/pyperf
+
+  > perf-tools - https://github.com/brendangregg/perf-tools
+
+  > pmu-tools - https://github.com/andikleen/pmu-tools
+
+  > magictrace - https://github.com/janestreet/magic-trace
+
+  > tracy - https://github.com/wolfpld/tracy
+
+  > hyperfine - https://github.com/sharkdp/hyperfine
+
+  > utrace - https://github.com/Gui774ume/utrace
+
+  > hotspot - https://github.com/KDAB/hotspot
+
+  > gperftools - https://github.com/gperftools/gperftools
+
+  > gprof - https://ftp.gnu.org/old-gnu/Manuals/gprof-2.9.1/html_mono/gprof.html
+
+  > pprof - https://github.com/google/pprof
+
+  > oprofile - https://oprofile.sourceforge.io
+
+  > omnitrace - https://github.com/ROCm/omnitrace
+
+  > optview2 - https://github.com/OfekShilon/optview2
+
+  > osaca - https://github.com/RRZE-HPC/OSACA
+
+  > llvm-mca - https://llvm.org/docs/CommandGuide/llvm-mca.html
+
+  > llvm-xray - https://llvm.org/docs/XRay.html
+
+  > bolt - https://github.com/llvm/llvm-project/blob/main/bolt/README.md
+
+  > propelleer - https://github.com/google/llvm-propeller
+
+  > zydis - https://github.com/zyantific/zydis
+
+  > likwid - https://github.com/RRZE-HPC/likwid
+
+  > causal-profiling - https://github.com/plasma-umass/coz
+
+
+- Misc
+
+  > Conferences/Podcasts - https://www.p99conf.io, https://signals-threads.simplecast.com, https://microarch.club
+
+  > C++ Low Latency Group (SG14) - https://github.com/WG21-SG14/SG14/
+
+  > Performance Ninja Class - https://github.com/dendibakh/perf-ninja
+
+  > Hardware Effects - https://github.com/Kobzol/hardware-effects
+
+  > The Linux Kernel Documentation - https://www.kernel.org/doc/html/latest/index.html
+
+  > Optimization Passes - https://llvm.org/docs/Passes.html
+
+  > Bit Twiddling Hacks - https://graphics.stanford.edu/~seander/bithacks.html
+
+### FAQ
+
+- [Optimization options](https://gcc.gnu.org/onlinedocs/gcc/Optimize-Options.html)
+
+  ```
+  $CXX -O3            # enable optimizations
+       -DNDEBUG       # disable asserts, etc.
+       -march=native  # specifies architecture (for example: -march=skylake)
+       -g             # debug symbols
+  ```
+
+- Noise reduction
+
+  ```sh
+  # Set process CPU affinity (apt-get install util-linux)
+  taskset -c 0 ./a.out
+
+  # Disable CPU Frequency scaling (apt-get install cpufrequtils)
+  sudo cpupower frequency-set --governor performance
+
+  # Disable Address Space Randomization
+  echo 0 > /proc/sys/kernel/randomize_va_space
+
+  # Disable processor boosting
+  echo 0 | sudo tee /sys/devices/system/cpu/cpufreq/boost
+
+  # Disable Turbo Mode
+  echo 1 > /sys/devices/system/cpu/intel_pstate/no_turbo
+
+  # Disable Hyperthreading/SMT
+  echo off | sudo tee /sys/devices/system/cpu/smt/control
+
+  # Enable kernel mode task-isolation (https://lwn.net/Articles/816298)
+  [boot] isolcpus=<cpu number>,...,<cpu number>
+
+  # Boot without OS (https://en.wikipedia.org/wiki/UEFI)
+  [boot] UEFI
+  ```
+
+- [docker](https://www.docker.com) setup for [Dockerfile](https://github.com/qlibs/perf/blob/main/Dockerfile)
+
+  ```sh
+  docker build -t perf .
+  ```
+
+  ```cpp
+  #!/bin/sh
+
+  docker run \
+    --privileged \
+    --network=host \
+    -e DISPLAY=${DISPLAY} \
+    -v /dev/shm:/dev/shm \
+    -v ${PWD}:${PWD} \
+    -w ${PWD} \
+    perf $@
+  ```
+
+- [llvm-xray](https://llvm.org/docs/XRay.html) instrumentation
+
+  ```cpp
+  [[clang::xray_always_instrument]] void always_profile();
+  [[clang::xray_never_instrument]]  void never_profile();
+  ```
+
+  ```cpp
+  // profiling threshold
+  -fxray-instruction-threshold=1 # default 200
+  ```
+
+- [callgrind](https://valgrind.org/docs/manual/cl-manual.html) conditional profiling
+
+  ```cpp
+  // reset profile
+  callgrind::start();
+
+  if (should_trigger()) {
+    trigger();
+    // dumps a new profile
+    callgrind::stop();
+  }
+  ```
+
+  ```sh
+  kcachegrind callgrind.* // open and combines all profiles
+  ```
+
+- Similar projects
+  > [google.benchmark](https://github.com/google/benchmark), [nanobench](https://github.com/martinus/nanobench)
+
+<!--
+#endif
+
+#pragma once
+
+#include <atomic>
+#include <vector>
+#include <string>
+#include <cstring>
+#include <string_view>
+#include <algorithm>
+#include <type_traits>
+
+namespace perf::inline v1_0_0 {
+using i8  = __INT8_TYPE__;
+using u8  = __UINT8_TYPE__;
+using i16 = __INT16_TYPE__;
+using u16 = __UINT16_TYPE__;
+using i32 = __INT32_TYPE__;
+using u32 = __UINT32_TYPE__;
+using i64 = __INT64_TYPE__;
+using u64 = __UINT64_TYPE__;
+using size_t = decltype(sizeof(int));
+
+template<size_t N>
+struct fixed_string {
+  constexpr explicit(false) fixed_string(const char (&str)[N]) {
+    for (auto i = 0u; i < N - 1u; ++i) data_[i] = str[i];
+  }
+  [[nodiscard]] constexpr auto data() const { return data_; }
+  [[nodiscard]] constexpr auto size() const { return N - 1u; }
+  [[nodiscard]] constexpr operator std::string_view() const { return {data(), size()}; }
+  char data_[N - 1u]{}; // no null termination
+};
+
+template<class... Ts> struct overload : Ts... { using Ts::operator()...; };
+template<class... Ts> overload(Ts...) -> overload<Ts...>;
+
+template<class T> concept tracer   = requires(T t) { t.start(); t.stop(); };
+template<class T> concept profiler = requires(T t) { t.start(); t.stop(); };
+template<class T> concept sampler  = requires(T t) { t.start(); t.stop(); };
+template<class T> concept analyzer = requires(T t) { t.begin(); t.end(); };
+
+struct none {
+  static inline void start() { }
+  static inline void stop() { }
+};
+
+[[gnu::always_inline]] static inline void do_not_optimize_away(const auto& t) noexcept {
+  asm volatile("" : : "r,m"(t) : "memory");
+}
+
+[[gnu::always_inline]] static inline void do_not_optimize_away(auto& t) noexcept {
+  #if defined(__clang__)
+  asm volatile("" : "+r,m"(t) : : "memory");
+  #else
+  asm volatile("" : "+m,r"(t) : : "memory");
+  #endif
+}
+
+[[gnu::always_inline]] static inline void do_not_optimize_away(auto&& t) noexcept {
+  #if defined(__clang__)
+  asm volatile("" : "+r,m"(t) : : "memory");
+  #else
+  asm volatile("" : "+m,r"(t) : : "memory");
+  #endif
+}
+
+[[gnu::always_inline]] static inline void escape(void* p) noexcept {
+  asm volatile("" : : "g"(p) : "memory");
+}
+
+[[gnu::always_inline]] static inline void clobber() noexcept {
+  asm volatile("" ::: "memory");
+}
+
+[[gnu::always_inline]] static inline auto rdtsc() noexcept {
+  u64 rax, rdx;
+  asm volatile("rdtsc" : "=a"(rax), "=d"(rdx));
+  return (rdx << 32u) + rax;
+}
+
+[[gnu::always_inline]] static inline auto rdtscp() noexcept {
+  u64 rax, rcx, rdx;
+  asm volatile("rdtscp" : "=a"(rax), "=d"(rdx), "=c"(rcx));
+  return (rdx << 32u) + rax;
+}
+
+[[gnu::always_inline]] static inline auto fence(std::memory_order order) noexcept {
+  std::atomic_thread_fence(order);
+}
+
+[[gnu::always_inline]] static inline auto compiler_fence() noexcept {
+  std::atomic_signal_fence(std::memory_order_acq_rel);
+}
+
+struct cfg {
+  const char* name{};
+  u32 warmup = 10u;
+  u32 max_epochs = 1'000'000;
+  u32 runs = 3u;
+};
+
+template<cfg cfg>
+constexpr auto timeit(auto fn) {
+  // warn debug mode
+  // pinping
+  // warmup
+  // perf counters (aggregate)
+  // until stable
+  fence(std::memory_order_acquire);
+  clobber();
+  for (auto i = 0u; i < cfg.max_epochs; ++i) {
+    if constexpr (requires { fn(i); }) {
+      fn(i);
+    } else {
+      fn();
+    }
+  }
+  clobber();
+  fence(std::memory_order_release);
+  // return results
+}
+
+template<tracer... TTraces> requires (sizeof...(TTraces) > 0u)
+constexpr void trace(auto fn) requires requires { fn(); } {
+  (TTraces::start(), ...);
+  fn();
+  (TTraces::stop(), ...);
+}
+
+template<profiler... TProfilers> requires (sizeof...(TProfilers) > 0u)
+constexpr void profile(auto fn) requires requires { fn(); } {
+  (TProfilers::start(), ...);
+  fn();
+  (TProfilers::stop(), ...);
+}
+
+template<sampler... TSamplers> requires (sizeof...(TSamplers) > 0u)
+constexpr void sample(auto fn) requires requires { fn(); } {
+  (TSamplers::start(), ...);
+  fn();
+  (TSamplers::stop(), ...);
+}
+
+template<analyzer... TAnalyzers, class TFn> requires (sizeof...(TAnalyzers) > 0u)
+constexpr void analyze(TFn fn) {
+  constexpr auto analyze = []<class Fn, class R, class... Ts>(Fn fn, Ts... ts) -> R {
+    if constexpr (std::is_same_v<R, void>) {
+      (TAnalyzers::begin(), ...);
+      fn(ts...);
+      (TAnalyzers::end(), ...);
+    } else {
+      (TAnalyzers::begin(), ...);
+      R r = fn(ts...);
+      (TAnalyzers::end(), ...);
+      return r;
+    }
+  };
+  do_not_optimize_away([&] {
+    if constexpr (requires { &TFn::operator(); }) {
+      return overload{
+        [&]<class R, class B, class... Ts>(R (B::*)(Ts...)) { return &decltype(analyze)::template operator()<TFn, R, Ts...>; },
+        [&]<class R, class B, class... Ts>(R (B::*)(Ts...) const) { return &decltype(analyze)::template operator()<TFn, R, Ts...>; },
+        [&]<class R, class B, class... Ts>(R (B::*)(Ts...) const noexcept) { return &decltype(analyze)::template operator()<TFn, R, Ts...>; },
+        [&]<class R, class B, class... Ts>(R (B::*)(Ts...) noexcept) { return &decltype(analyze)::template operator()<TFn, R, Ts...>; },
+      }(&TFn::operator());
+    } else {
+      return overload{
+        []<class R, class... Ts>(R (*)(Ts...)) { return &decltype(analyze)::template operator()<TFn, R, Ts...>; },
+        []<class R, class... Ts>(R (*)(Ts...) noexcept) { return &decltype(analyze)::template operator()<TFn, R, Ts...>; },
+      }(fn);
+    }
+  }());
+}
+} // namespace perf
+
+#if __has_include(<Zydis/Zydis.h>)
+#include <Zydis/Zydis.h>
+namespace perf::inline v1_0_0 {
+namespace detail {
+template<class Fn, class R, class... Ts>
+static inline auto invoke(Fn fn, Ts... ts) -> R {
+  if constexpr (std::is_same_v<R, void>) {
+    fn(ts...);
+    asm volatile("int3" ::: "memory");
+  } else {
+    R r = fn(ts...);
+    do_not_optimize_away(r);
+    asm volatile("int3" ::: "memory");
+    return r;
+  }
+}
+} // namespace detail
+/**
+ * `-lZydis`
+ * Note: `int3` instruction is not allowed as it's used as a marker
+ */
+template<class TFn, auto MachineCode = ZYDIS_MACHINE_MODE_LONG_64>
+[[nodiscard]] constexpr auto disassemble(TFn fn) -> std::vector<ZydisDisassembledInstruction> {
+  const auto data = reinterpret_cast<const ZyanU8* const>([&] {
+    if constexpr (requires { &TFn::operator(); }) {
+      return overload{
+        []<class R, class B, class... Ts>(R (B::*)(Ts...)) { return detail::invoke<TFn, R, Ts...>; },
+        []<class R, class B, class... Ts>(R (B::*)(Ts...) const) { return detail::invoke<TFn, R, Ts...>; },
+        []<class R, class B, class... Ts>(R (B::*)(Ts...) const noexcept) { return detail::invoke<TFn, R, Ts...>; },
+        []<class R, class B, class... Ts>(R (B::*)(Ts...) noexcept) { return detail::invoke<TFn, R, Ts...>; },
+      }(&TFn::operator());
+    } else {
+      return overload{
+        []<class R, class... Ts>(R (*)(Ts...)) { return detail::invoke<TFn, R, Ts...>; },
+        []<class R, class... Ts>(R (*)(Ts...) noexcept) { return detail::invoke<TFn, R, Ts...>; },
+      }(fn);
+    }
+  }());
+  ZydisDisassembledInstruction instruction{};
+  ZyanU64 runtime_address{};
+  ZyanUSize offset{};
+  std::vector<ZydisDisassembledInstruction> v;
+  while (ZYAN_SUCCESS(ZydisDisassembleIntel(MachineCode, 0, data + offset, -1, &instruction)) and
+    instruction.info.mnemonic != ZYDIS_MNEMONIC_INT3) {
+    v.push_back(instruction);
+    offset += instruction.info.length;
+  }
+  return v;
+}
+} // namespace perf
+#endif
+
+#if __has_include(<linux/perf_event.h>) and __has_include(<sys/ioctl.h>)
+#include <linux/perf_event.h>
+#include <sys/ioctl.h>
+namespace perf::inline v1_0_0 {
+/**
+ * `sudo sysctl -w kernel.perf_event_paranoid=-1`
+ * https://perf.wiki.kernel.org
+ * https://man7.org/linux/man-pages/man2/perf_event_open.2.html
+ */
+template<fixed_string... Events> requires (sizeof...(Events) > 0u)
+class counters {
+  enum domain : u8 {
+    USER        = 0b001,
+    KERNEL      = 0b010,
+    HYPERVISOR  = 0b100,
+  };
+
+  struct event final {
+    std::string_view name{};
+    u64 type{};
+    u64 id{};
+    enum domain domain{USER | KERNEL | HYPERVISOR};
+  };
+
+  static constexpr auto events = std::array{
+    event{"cpu-clock",                PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_CLOCK},
+    event{"task-clock",               PERF_TYPE_SOFTWARE, PERF_COUNT_SW_TASK_CLOCK},
+    event{"page-faults",              PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS},
+    event{"faults",                   PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS},
+    event{"major-faults",             PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS_MAJ},
+    event{"minor-faults",             PERF_TYPE_SOFTWARE, PERF_COUNT_SW_PAGE_FAULTS_MIN},
+    event{"alignment-faults",         PERF_TYPE_SOFTWARE, PERF_COUNT_SW_ALIGNMENT_FAULTS},
+    event{"emulation-faults",         PERF_TYPE_SOFTWARE, PERF_COUNT_SW_EMULATION_FAULTS},
+    event{"context-switches",         PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CONTEXT_SWITCHES},
+    event{"bpf-output",               PERF_TYPE_SOFTWARE, PERF_COUNT_SW_BPF_OUTPUT},
+    event{"cgroup-switches",          PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CGROUP_SWITCHES},
+    event{"cpu-migrations",           PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_MIGRATIONS},
+    event{"migrations",               PERF_TYPE_SOFTWARE, PERF_COUNT_SW_CPU_MIGRATIONS},
+
+    event{"cycles",                   PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES},
+    event{"instructions",             PERF_TYPE_HARDWARE, PERF_COUNT_HW_INSTRUCTIONS},
+    event{"branch-misses",            PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_MISSES},
+    event{"cpu-cycles",               PERF_TYPE_HARDWARE, PERF_COUNT_HW_CPU_CYCLES},
+    event{"bus-cycles",               PERF_TYPE_HARDWARE, PERF_COUNT_HW_BUS_CYCLES},
+    event{"cache-misses",             PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES},
+    event{"cache-references",         PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_REFERENCES},
+    event{"branches",                 PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_INSTRUCTIONS},
+    event{"branch-instructions",      PERF_TYPE_HARDWARE, PERF_COUNT_HW_BRANCH_INSTRUCTIONS},
+    event{"stalled-cycles-backend",   PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_BACKEND},
+    event{"idle-cycles-backend",      PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_BACKEND},
+    event{"stalled-cycles-frontend",  PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_FRONTEND},
+    event{"idle-cycles-frontend",     PERF_TYPE_HARDWARE, PERF_COUNT_HW_STALLED_CYCLES_FRONTEND},
+    event{"LLC-misses",               PERF_TYPE_HARDWARE, PERF_COUNT_HW_CACHE_MISSES},
+
+    event{"L1-misses",                PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_L1D  | (PERF_COUNT_HW_CACHE_OP_READ << 8u) | (PERF_COUNT_HW_CACHE_RESULT_MISS   << 16u)},
+    event{"L1-dcache-loads",          PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_L1D  | (PERF_COUNT_HW_CACHE_OP_READ << 8u) | (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16u)},
+    event{"L1-dcache-load-misses",    PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_L1D  | (PERF_COUNT_HW_CACHE_OP_READ << 8u) | (PERF_COUNT_HW_CACHE_RESULT_MISS   << 16u)},
+    event{"L1-icache-loads",          PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_L1I  | (PERF_COUNT_HW_CACHE_OP_READ << 8u) | (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16u)},
+    event{"L1-icache-load-misses",    PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_L1I  | (PERF_COUNT_HW_CACHE_OP_READ << 8u) | (PERF_COUNT_HW_CACHE_RESULT_MISS   << 16u)},
+    event{"dTLB-loads",               PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_DTLB | (PERF_COUNT_HW_CACHE_OP_READ << 8u) | (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16u)},
+    event{"dTLB-load-misses",         PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_DTLB | (PERF_COUNT_HW_CACHE_OP_READ << 8u) | (PERF_COUNT_HW_CACHE_RESULT_MISS   << 16u)},
+    event{"iTLB-loads",               PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_ITLB | (PERF_COUNT_HW_CACHE_OP_READ << 8u) | (PERF_COUNT_HW_CACHE_RESULT_ACCESS << 16u)},
+    event{"iTLB-load-misses",         PERF_TYPE_HW_CACHE, PERF_COUNT_HW_CACHE_ITLB | (PERF_COUNT_HW_CACHE_OP_READ << 8u) | (PERF_COUNT_HW_CACHE_RESULT_MISS   << 16u)},
+  };
+
+  struct counter final {
+    struct read_format final {
+      u64 value{};
+      u64 time_enabled{};
+      u64 time_running{};
+    };
+
+    constexpr counter(const auto& event)
+      : fd_{[&] {
+          const perf_event_attr event_attr{
+            .type = u32(event.type),
+            .size = sizeof(perf_event_attr),
+            .config = event.id,
+            .read_format = PERF_FORMAT_TOTAL_TIME_ENABLED | PERF_FORMAT_TOTAL_TIME_RUNNING,
+            .disabled = 1,
+            .inherit = 1,
+            .exclude_user = not(event.domain & USER),
+            .exclude_kernel = not(event.domain & KERNEL),
+            .exclude_hv = not(event.domain & HYPERVISOR),
+            .inherit_stat = 0,
+          };
+          return int(syscall(__NR_perf_event_open, &event_attr, 0, -1, -1, 0));
+        }()}
+    { }
+
+    constexpr ~counter() {
+      close(fd_);
+    }
+
+    constexpr auto start() -> bool {
+      ioctl(fd_, PERF_EVENT_IOC_RESET, 0);
+      ioctl(fd_, PERF_EVENT_IOC_ENABLE, 0);
+      return read(fd_, &start_, sizeof(start_));
+    }
+
+    constexpr auto stop() -> bool {
+      ioctl(fd_, PERF_EVENT_IOC_DISABLE, 0);
+      return read(fd_, &stop_, sizeof(stop_));
+    }
+
+    [[nodiscard]] constexpr auto get() const -> double {
+      const auto value = double(stop_.value - start_.value);
+      const auto correction = double(stop_.time_enabled - start_.time_enabled) /
+                              double(stop_.time_running - start_.time_running);
+      return value * correction;
+    }
+
+   private:
+    int fd_{};
+    read_format start_{};
+    read_format stop_{};
+  };
+
+  static_assert(((std::find_if(
+    events.begin(), events.end(),
+    [](const auto& event) { return event.name == Events; }) != events.end()
+  ) and ...));
+
+ public:
+  constexpr auto start() -> bool {
+    auto status = true;
+    for (auto& counter : counters_) status &= counter.start();
+    return status;
+  }
+
+  constexpr auto stop() -> bool {
+    auto status = true;
+    for (auto& counter : counters_) status &= counter.stop();
+    return status;
+  }
+
+  [[nodiscard]] constexpr auto operator*() const {
+    size_t id{};
+    return std::array{std::pair{std::string_view{Events}, counters_[id++].get()}...};
+  }
+
+ private:
+  std::array<counter, sizeof...(Events)> counters_{
+    [] {
+      for (const auto& event : events) if (event.name == Events) return counter{event};
+      __builtin_unreachable();
+    }()...
+  };
+};
+} // namespace perf
+#endif
+
+namespace perf::inline v1_0_0 {
+/**
+ * https://www.intel.com/content/www/us/en/docs/intrinsics-guide/index.html#text=rdtsc
+ * Architecture  Latency  Throughput
+ * Skylake       18       2
+ */
+struct clock {
+  auto start() {
+    tic = rdtsc();
+  }
+
+  auto stop() {
+    auto tmp = rdtscp();
+    tics.push_back(tmp - tic);
+  }
+
+  u64 tic{};
+  std::vector<u64> tics{};
+};
+} // namespace perf
+
+#if __has_include(<time.h>)
+#include <time.h>
+namespace perf::inline v1_0_0 {
+/**
+ * CLOCK_REALTIME
+ * CLOCK_REALTIME_COARSE
+ * CLOCK_MONOTONIC
+ * CLOCK_MONOTONIC_RAW
+ * CLOCK_PROCESS_CPUTIME_ID
+ * CLOCK_THREAD_CPUTIME_ID
+ */
+template<clockid_t Clock = CLOCK_REALTIME>
+struct clock_time {
+  [[gnu::always_inline]] static inline auto start() {
+    timespec ts;
+    clock_gettime(Clock, &ts);
+    const auto ns = ts.tv_sec * 1e9 + ts.tv_nsec;
+    (void)ns;
+  }
+
+  [[gnu::always_inline]] static inline auto stop() {
+  }
+};
+} // namespace perf
+#endif
+
+#if __has_include(<chrono>)
+#include <chrono>
+namespace perf::inline v1_0_0 {
+struct system_clock {
+  using clock_t = std::conditional_t<
+    std::chrono::high_resolution_clock::is_steady,
+    std::chrono::high_resolution_clock,
+    std::chrono::steady_clock
+  >;
+
+  [[gnu::always_inline]] static inline auto start() {
+    clock_t::now();
+  }
+
+  [[gnu::always_inline]] static inline auto stop() {
+    clock_t::now();
+    //auto ns = std::chrono::duration_cast<std::chrono::nanoseconds>(duration);
+  }
+};
+} // namespace perf
+#endif
+
+#if __has_include(<valgrind/callgrind.h>)
+#include <valgrind/callgrind.h>
+namespace perf::inline v1_0_0 {
+/**
+ * valgrind --tool=callgrind --instr-atstart=no ./a.out
+ * kcachegrind callgrind.*
+ */
+struct callgrind {
+  [[gnu::always_inline]] static inline auto start() {
+    CALLGRIND_START_INSTRUMENTATION;
+  }
+
+  [[gnu::always_inline]] static inline auto stop() {
+    CALLGRIND_STOP_INSTRUMENTATION;
+    CALLGRIND_DUMP_STATS;
+  }
+};
+} // namespace perf
+#endif
+
+#if __has_include(<ittnotify.h>)
+#include <ittnotify.h>
+namespace perf::inline v1_0_0 {
+/**
+ * `-littnotify`
+ * `vtune -collect performance-snapshot -start-paused -finalization-mode=full -r result -- ./a.out`
+ * https://www.intel.com/content/www/us/en/developer/tools/oneapi/vtune-profiler.html
+ * https://github.com/intel/ittapi
+ */
+struct intel_vtune {
+  [[gnu::always_inline]] static inline auto start() {
+    __itt_resume();
+  }
+
+  [[gnu::always_inline]] static inline auto stop() {
+    __itt_pause();
+  }
+};
+} // namespace perf
+#endif
+
+#if __has_include(<xray/xray_interface.h>) and __has_include(<xray/xray_log_interface.h>)
+#include <xray/xray_interface.h>
+#include <xray/xray_log_interface.h>
+namespace perf::inline v1_0_0 {
+/**
+ * `-fxray-instrument -fxray-instruction-threshold=1`
+ * `XRAY_OPTIONS="patch_premain=true xray_mode=xray-basic" ./a.out`
+ * `llvm-xray account xray-log.* --top=10 --sort=sum --sortorder=dsc --instr_map=./a.out`
+ * https://llvm.org/docs/XRay.html
+ */
+template<fixed_string mode = "xray-fdr", fixed_string cfg = "patch_premain=false;xray_logfile_base=xray-log.%">
+struct llvm_xray {
+  [[gnu::always_inline]] [[clang::xray_never_instrument]] static auto start() {
+    __xray_log_select_mode(mode.data());
+    __xray_log_init_mode(mode.data(), cfg);
+    __xray_patch();
+  }
+
+  [[gnu::always_inline]] [[clang::xray_never_instrument]] static auto stop() {
+    __xray_log_finalize();
+    __xray_log_flushLog();
+    __xray_unpatch();
+  }
+};
+} // namespace perf
+#endif
+
+/**
+ * `clang++ perf.cpp -g -O3 -mllvm -x86-asm-syntax=intel -S -o - | llvm-mca -mcpu=skylake -timeline`
+ * https://llvm.org/docs/CommandGuide/llvm-mca.html
+ */
+namespace perf::inline v1_0_0 {
+struct llvm_mca {
+  [[gnu::always_inline]] static inline auto begin() {
+    asm volatile("# LLVM-MCA-BEGIN" ::: "memory");
+  }
+
+  [[gnu::always_inline]] static inline auto end() {
+    asm volatile("# LLVM-MCA-END" ::: "memory");
+  }
+};
+} // namespace perf
+
+/**
+ * `$CXX perf.cpp -g -O3 -S -o - | osaca /dev/stdin`
+ * https://github.com/RRZE-HPC/OSACA
+ */
+namespace perf::inline v1_0_0 {
+struct osaca {
+  [[gnu::always_inline]] static inline auto begin() {
+    asm volatile("# OSACA-BEGIN" ::: "memory");
+  }
+
+  [[gnu::always_inline]] static inline auto end() {
+    asm volatile("# OSACA-END" ::: "memory");
+  }
+};
+} // namespace perf
+
+namespace perf::inline v1_0_0 {
+#if __has_include(<xray/xray_interface.h>)
+constexpr auto trace(auto fn) { trace<llvm_xray<>>(fn); }
+#endif
+#if __has_include(<valgrind/callgrind.h>)
+constexpr auto profile(auto fn) { profile<callgrind>(fn); }
+#endif
+#if __has_include(<ittnotify.h>)
+constexpr auto sample(auto fn) { sample<intel_vtune>(fn); }
+#endif
+constexpr auto analyze(auto fn) {
+  analyze<llvm_mca>(fn);
+  analyze<osaca>(fn);
+}
+} // namesapce perf
+
+#ifndef NTEST
+static_assert(([] {
+  // perf::fixed_string
+  {
+    static_assert(0u == perf::fixed_string{""}.size());
+    static_assert(std::string_view{""} == perf::fixed_string{""});
+    static_assert(6u == perf::fixed_string{"cycles"}.size());
+    static_assert(std::string_view{"cycles"} == perf::fixed_string{"cycles"});
+  }
+
+  // perf::overload
+  {
+    static_assert(0u == perf::overload{[](auto... ts) { return sizeof...(ts); }}());
+    static_assert(1u == perf::overload{[](auto... ts) { return sizeof...(ts); }}(1));
+    static_assert(2u == perf::overload{[](auto... ts) { return sizeof...(ts); }}(1, 2));
+    static_assert(42 == perf::overload{[](int i) { return i; }}(42));
+    static_assert(42 == perf::overload{[](int i) { return i; }, [](auto a) { return a; }}(42));
+    static_assert('_' == perf::overload{[](int i) { return i; }, [](auto a) { return a; }}('_'));
+  }
+
+  // perf::profiler
+  {
+    static_assert(not perf::profiler<int>);
+
+    struct empty {};
+    static_assert(not perf::profiler<empty>);
+
+    struct profiler { static void start(); static void stop(); };
+    static_assert(perf::profiler<profiler>);
+  }
+
+  // perf::analyzer
+  {
+  }
+}(), true));
+#endif // NTEST
+
+// TODO
+// disable cache functions
+// set get affinitization
+// get cpu info
+// printers with custom counters
